@@ -1,6 +1,9 @@
 package graph
 
 import smt.Z3
+import smt.Z3._
+
+import scala.language.{implicitConversions, postfixOps}
 
 object Network {
 
@@ -25,7 +28,7 @@ object Network {
   trait ImportFilter
 
   case class Ip(ip: Int) {
-    def toHexString: String = ip.toHexString
+    def toHexString: String = "#x" ++ ip.toHexString.reverse.padTo(8, '0').reverse
   }
   object Ip {
     val length: Int = 32
@@ -39,20 +42,19 @@ object Network {
 
   case class Packet(srcIp: Option[Ip], srcPort: Option[Port], dstIp: Option[Ip], dstPort: Option[Port]) {
     def toZ3: Z3.T = {
-      import Z3._
       createSym("srcIp", bitVecSort(Ip.length)) ++
-        createSym("srcPort", intSort) ++
-        createSym("dstIp", bitVecSort(Ip.length)) ++
-        createSym("dstPort", intSort) ++
-        srcIp.map(ip => createEqual("srcIp", ip toHexString)).getOrElse("") ++
-        srcPort.map(port => createEqual("srcIp", port toString)).getOrElse("") ++
-        dstIp.map(ip => createEqual("dstIp", ip toHexString)).getOrElse("") ++
-        dstPort.map(port => createEqual("dstIp", port toString)).getOrElse("")
+      createSym("srcPort", intSort) ++
+      createSym("dstIp", bitVecSort(Ip.length)) ++
+      createSym("dstPort", intSort) ++
+      srcIp.map(ip => createEqual("srcIp", ip toHexString)).getOrElse("") ++
+      srcPort.map(port => createEqual("srcPort", port.port toString)).getOrElse("") ++
+      dstIp.map(ip => createEqual("dstIp", ip toHexString)).getOrElse("") ++
+      dstPort.map(port => createEqual("dstPort", port.port toString)).getOrElse("")
     }
   }
-  object Packet {
-    def main(args: Array[String]): Unit = print(Packet(Some(1), Some(2), Some(3), Some(4)))
-  }
+
+  // Temporary main for testing.
+  def main(args: Array[String]): Unit = print(Packet(Some(1), Some(2), Some(3), Some(4)).toZ3)
 
   case class Port(port: Int)
   object Port {

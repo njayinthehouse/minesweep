@@ -1,7 +1,8 @@
-import graph.Network.Ip
+import Network.Ip
 
 // MineSweeper-lang
 abstract class MS {
+
   def freeVars: Set[Var] = this match {
     case Var(cpr, x) => Set(Var(cpr, x))
     case And(cs) => cs.flatMap(_.freeVars) toSet
@@ -27,4 +28,3 @@ case class Eq(lhs: MS, rhs: MS) extends MS
 case class DataFwd(r1: String, r2: String) extends MS
 case class ControlFwd(r1: String, r2: String) extends MS
 case class Preferred(r1: Cpr, r2: Cpr) extends MS
-

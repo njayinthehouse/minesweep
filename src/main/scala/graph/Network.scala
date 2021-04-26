@@ -1,8 +1,6 @@
 package graph
 
-import smt.Z3
-import smt.Z3._
-
+import scala.collection.mutable
 import scala.language.{implicitConversions, postfixOps}
 
 object Network {
@@ -24,8 +22,6 @@ object Network {
 
   case class Edge(v: Vertex, w: Vertex, back: ControlPlaneRec, front: ControlPlaneRec)
 
-  // TODO: Filters
-  trait ImportFilter
 
   case class Ip(ip: Int) {
     def toHexString: String = "#x" ++ ip.toHexString.reverse.padTo(8, '0').reverse
@@ -35,7 +31,9 @@ object Network {
     implicit def of(x: Int): Ip = Ip(x)
   }
 
-  trait IpPrefix
+  trait IpPrefix {
+    val prefix: Int
+  }
 
   type Metric = Int
   type MED = Int
@@ -69,18 +67,72 @@ object Network {
 
   case object CON extends Protocol
 
-  trait Vertex {
-    val name: String
-  }
 
-  type Vrf = Map[Edge, ControlPlaneRec]
-
+  // Vertex is a device (node) in the network graph
+  trait Vertex
   // Routers are subrouters running a protocol
   case class Router(name: String, ip: Ip, protocol: Protocol) extends Vertex
-
   case class Neighbor(name: String, ip: Ip) extends Vertex
-
   // Chose not to put a graph in subnet, since we're abstracting over that
   case class Subnet(name: String, prefix: IpPrefix) extends Vertex
 
+  type Vrf = Map[Edge, ControlPlaneRec]
+
+
+
+  // Command is the user API
+  abstract class Command
+  case class AddEdge(src: Vertex, dst: Vertex) extends Command
+  case class Deny(vertex: Vertex, prefix: IpPrefix, mask: Int, range: (Int, Int)) extends Command
+  case class SetLocalPreference(vertex: Vertex, pref: Int) extends Command
+
+  object Reader {
+    var cmds = mutable.ListBuffer[Command]()
+    var tokens = mutable.Queue[String]()
+
+    def getProtocol: Protocol = tokens.dequeue() match {
+      case "BGP" => BGP
+      case "OSPF" => OSPF
+      case "CON" => CON
+    }
+
+    def getVertex: Vertex = tokens.dequeue() match {
+      case "Router" => val name = tokens.dequeue();
+        val ip = Ip(tokens.dequeue().toInt); val protocol = getProtocol; Router(name, ip, protocol)
+      case "Neighbor" => val name = tokens.dequeue();
+        val ip = Ip(tokens.dequeue().toInt); Neighbor(name, ip)
+      case "Subnet" => val name = tokens.dequeue();
+        val prefix = IpPrefix(tokens.dequeue().toInt); Subnet(name, prefix)
+    }
+
+    def getCmd: Command = tokens.dequeue() match {
+      case "AddEdge" => val src = getVertex; val dst = getVertex; AddEdge(src, dst)
+    }
+
+    // convert a list of String to a list of Command
+    def read(file: List[String]): List[Command] = file map { l =>
+      tokens.clear; tokens ++= l.split(" +"); getCmd
+    }
+  }
+
+  object Parser {
+    var vertices = mutable.Set[Vertex]()
+    var edges = mutable.Set[Edge]()
+
+    // dummy values for now
+    val back = ControlPlaneRec(IpPrefix(0))
+    val front = ControlPlaneRec(IpPrefix(0))
+
+    def parseEach(xs: List[Command]): Unit = xs.foreach {
+      case AddEdge(src, dst) =>
+        // add edge src->dst and dst->src into graph
+        vertices += src; vertices += dst; edges += Edge(src, dst, back, front); edges += Edge(dst, src, back, front)
+      case _ => System.out.println("not supported yet")
+    }
+
+    def parse(xs: List[Command]): Graph = {
+      parseEach(xs)
+      Graph(vertices.toSet, edges.toSet)
+    }
+  }
 }

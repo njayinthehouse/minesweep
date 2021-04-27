@@ -13,7 +13,11 @@ object Z3 {
   case class And(e: Expr, es: Seq[Expr]) extends Expr
   case class Or(e: Expr, es: Seq[Expr]) extends Expr
   case class Lt(e: Expr, u: Expr) extends Expr
+  case class Le(e: Expr, u: Expr) extends Expr
   case class Eq(e: Expr, u: Expr) extends Expr
+  case class Not(e: Expr) extends Expr
+  case class Implies(e: Expr, u: Expr) extends Expr
+  case class If(c: Expr, t: Expr, e: Expr) extends Expr
 
   case class CreateSym(x: String, sort: Sort) extends Decl
   case class CreateRecord(name: String, fields: Seq[(String, Sort)]) extends Decl
@@ -30,12 +34,20 @@ object Z3 {
       case Hex(s) => s
       case And(e, es) => s"(and $e ${es.flatMap(_.toString)})"
       case Or(e, es) => s"(or $e ${es.flatMap(_.toString)}"
+      case Lt(e, u) => s"(< $e $u)"
+      case Le(e, u) => s"(<= $e $u)"
+      case Eq(e, u) => s"(= $e $u)"
+      case Not(e) => s"(not $e)"
+      case Implies(e, u) => s"(=> $e $u)"
+      case If(c, t, e) => s"(ite $c $t $e)"
     }
 
-    def <(that: Expr): Lt = Lt(this, that)
     def &&(that: Expr): And = And(this, Seq(that))
     def ||(that: Expr): Or = Or(this, Seq(that))
+    def <(that: Expr): Lt = Lt(this, that)
+    def <=(that: Expr): Le = Le(this, that)
     def =?(that: Expr): Eq = Eq(this, that)
+    def ==>(that: Expr): Implies = Implies(this, that)
   }
 
   abstract class Decl extends Stmt

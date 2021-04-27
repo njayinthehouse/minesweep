@@ -26,6 +26,7 @@ case class And(conjuncts: Seq[MS]) extends MS
 case class Or(disjuncts: Seq[MS]) extends MS
 case class Not(e: MS) extends MS
 case class If(c: MS, t: MS, f: MS) extends MS
+
 case class FBM(prefix: Var, ip: Var, length: Num) extends MS
 case class Eq(lhs: MS, rhs: MS) extends MS
 case class DataFwd(r1: String, r2: String) extends MS

@@ -51,23 +51,31 @@ object Network {
     override def toZ3: Sort = ???
 
     object Declaration extends ToZ3[Decl] {
-      override def toZ3: Decl = ???
+      override def toZ3: Decl =
+
+        CreateRecord("CPRSort", Seq(("prefix", IpPrefix), ()))
     }
   }
 
-  trait Filter extends ToZ3[Prog[Decl]]
+  case class Filter(cmd: MS) extends ToZ3[Prog[Decl]] {
+    override def toZ3: Prog[Decl] = cmd.toZ3
+  }
 
-  case class Ip(ip: Int) extends ToZ3[Hex] {
+  trait IpPrefix {
+    val prefix: Int
+    val length: Int
+  }
+  object IpPrefix {
+    override def toZ3: Sort = BitVecSort(length)
+  }
+
+  case class Ip(ip: Int) extends ToZ3[Hex] with IpPrefix {
     def toZ3: Hex = Hex("#x" ++ ip.toHexString.reverse.padTo(8, '0').reverse)
   }
   object Ip extends ToZ3[Sort] {
     val length: Int = 32
 
-    override def toZ3: Sort = ???
-  }
-
-  trait IpPrefix {
-    val prefix: Int
+    override def toZ3: Sort = BitVecSort
   }
 
   type Metric = Int

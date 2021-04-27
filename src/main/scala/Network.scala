@@ -17,7 +17,7 @@ object Network {
   object Graph {
 
     case class Edge(v: Vertex, w: Vertex,
-                    front: ControlPlaneRec, back: ControlPlaneRec,
+                    front: ControlPlaneRecord, back: ControlPlaneRecord,
                     inFilter: Filter, outFilter: Filter)
       extends ToZ3[Prog[Decl]] {
 
@@ -36,7 +36,7 @@ object Network {
 
   }
 
-  case class ControlPlaneRec
+  case class ControlPlaneRecord
   (prefix: IpPrefix,
    length: Int,
    address: Address,
@@ -47,8 +47,12 @@ object Network {
    bgpInternal: Boolean,
    valid: Boolean)
 
-  object ControlPlaneRec extends ToZ3[Z3.Decl] {
-    def toZ3: Decl = ???
+  object ControlPlaneRecord extends ToZ3[Sort] {
+    override def toZ3: Sort = ???
+
+    object Declaration extends ToZ3[Decl] {
+      override def toZ3: Decl = ???
+    }
   }
 
   trait Filter extends ToZ3[Prog[Decl]]
@@ -56,7 +60,6 @@ object Network {
   case class Ip(ip: Int) extends ToZ3[Hex] {
     def toZ3: Hex = Hex("#x" ++ ip.toHexString.reverse.padTo(8, '0').reverse)
   }
-
   object Ip extends ToZ3[Sort] {
     val length: Int = 32
 

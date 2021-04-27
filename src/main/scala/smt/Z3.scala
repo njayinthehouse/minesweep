@@ -12,7 +12,7 @@ object Z3 {
   case class CreateEqual(e: Stmt, u: Stmt) extends Stmt
   case object Sat extends Stmt
   case object Model extends Stmt
-  case class Seq(stmts: collection.Seq[Stmt]) extends Stmt
+  case class Stmts(stmts: collection.Seq[Stmt]) extends Stmt
 
   abstract class Stmt {
     override def toString: String = this match {
@@ -22,6 +22,13 @@ object Z3 {
       case Model => "(get-model)"
       case Seq(ss) => ss.map(_.toString).foldLeft("")(_ ++ _)
     }
+
+    def toSeq: Seq[Stmt] = this match {
+      case Stmts(ss) => ss
+      case s => Seq(s)
+    }
+
+    def ++(that: Stmt): Stmts = Stmts(this.toSeq ++ that.toSeq)
   }
 }
 

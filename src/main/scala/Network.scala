@@ -1,4 +1,4 @@
-import smt.Z3
+import smt.{Z3, ToZ3}
 import smt.Z3._
 
 object Network {
@@ -8,15 +8,15 @@ object Network {
   type Vertex = graph.Graph.Vertex
   type Edge = graph.Graph.Edge[(ControlPlaneRec, ControlPlaneRec)]
 */
-  case class Graph(vs: Set[Graph.Vertex], es: Set[Graph.Edge]) extends smt.ToZ3 {
-    override def toZ3: T = es flatMap toZ3
+  case class Graph(vs: Set[Graph.Vertex], es: Set[Graph.Edge]) extends ToZ3 {
+    override def toZ3:  = es flatMap toZ3
   }
 
   object Graph {
 
     case class Edge(v: Vertex, w: Vertex,
                     front: ControlPlaneRec, back: ControlPlaneRec,
-                    inFilter: Filter, outFilter: Filter) extends smt.ToZ3 {
+                    inFilter: Filter, outFilter: Filter) extends ToZ3 {
 
       override def toZ3: Z3.Stmt = inFilter.toZ3 ++ outFilter.toZ3
     }

@@ -6,6 +6,7 @@ object Z3 {
 
   case class BitVecSort(length: Int) extends Sort
   case object IntSort extends Sort
+  case object BoolSort extends Sort
 
   case class Sym(x: String) extends Expr
   case class Num(n: Int) extends Expr
@@ -20,7 +21,7 @@ object Z3 {
   case class If(c: Expr, t: Expr, e: Expr) extends Expr
 
   case class CreateSym(x: String, sort: Sort) extends Decl
-  case class CreateRecord(name: String, fields: Seq[(String, Sort)]) extends Decl
+  case class CreateRecordSort(name: String, fields: Seq[(String, Sort)]) extends Decl
   case class Assert(e: Expr) extends Decl
   case object Sat extends Stmt
   case object Model extends Stmt
@@ -55,7 +56,7 @@ object Z3 {
   abstract class Stmt extends T {
     override def toString: String = this match {
       case CreateSym(x, sort) => s"(declare-const $x $sort)"
-      case CreateRecord(name, fields) => {
+      case CreateRecordSort(name, fields) => {
         s"(declare-datatypes () ($name (mk-$name " +
           s"${fields.flatMap{ case (x, s) => s"(x s)" }})))"
       }

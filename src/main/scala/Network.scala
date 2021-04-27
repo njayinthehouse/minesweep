@@ -1,5 +1,5 @@
 import smt.{ToZ3, Z3}
-import smt.Z3.{CreateSym, Decl, Hex, Prog, Sort, Stmt, Sym}
+import smt.Z3.{Assert, BitVecSort, CreateRecordSort, BoolSort, IntSort, CreateSym, Decl, Hex, Prog, Sort, Stmt, Sym}
 
 object Network {
 
@@ -10,8 +10,8 @@ object Network {
   type Vertex = graph.Graph.Vertex
   type Edge = graph.Graph.Edge[(ControlPlaneRec, ControlPlaneRec)]
 */
-  case class Graph(vs: Set[Graph.Vertex], es: Set[Graph.Edge]) extends ToZ3[Prog[Decl]] {
-    override def toZ3: Prog[Decl] = ???
+  case class Graph(vs: Set[Graph.Vertex]) extends ToZ3[Prog[Decl]] {
+    override def toZ3: Prog[Decl] = vs.toSeq.flatMap(_.toZ3.ss)
   }
 
   object Graph {
@@ -19,63 +19,69 @@ object Network {
     case class Edge(v: Vertex, w: Vertex,
                     front: ControlPlaneRecord, back: ControlPlaneRecord,
                     inFilter: Filter, outFilter: Filter)
-      extends ToZ3[Prog[Decl]] {
+      extends ToZ3[Prog[Assert]] {
 
-      override def toZ3: Prog[Decl] = ???
+      override def toZ3: Prog[Assert] = Seq(inFilter.toZ3, outFilter.toZ3)
     }
 
     abstract class Vertex extends ToZ3[Prog[Decl]] {
-      override def toZ3: Prog[Decl] = ???
+      val incoming: Edge = ???
+      val outgoing: Edge
+      val name: String
+
+      override def toZ3: Prog[Decl] = outgoing.toZ3.ss :+ CreateSym(name, IntSort)
     }
 
-    case class Router(name: String, ip: Ip, protocol: Protocol) extends Vertex
-
-    case class Neighbor(name: String, ip: Ip) extends Vertex
-
-    case class Subnet(name: String, prefix: IpPrefix) extends Vertex
+    case class Router(name: String, outgoing: Edge, ip: Ip, protocol: Protocol) extends Vertex
+    case class Neighbor(name: String, outgoing: Edge, ip: Ip) extends Vertex
+    // TODO: should we keep it or just use Neighbor only?
+    case class Subnet(name: String, outgoing: Edge, prefix: IpPrefix) extends Vertex
 
   }
 
   case class ControlPlaneRecord
   (prefix: IpPrefix,
-   length: Int,
+   /* length: Int, */
    address: Address,
    lp: Ip,
    metric: Metric,
    med: MED, // Multiexit discriminator
    rid: Ip,
    bgpInternal: Boolean,
-   valid: Boolean)
+   valid: Boolean) {
+  }
 
   object ControlPlaneRecord extends ToZ3[Sort] {
     override def toZ3: Sort = ???
 
     object Declaration extends ToZ3[Decl] {
       override def toZ3: Decl =
-
-        CreateRecord("CPRSort", Seq(("prefix", IpPrefix), ()))
+        CreateRecordSort("CPRSort", Seq(("prefix", Ip.toZ3), ("length", IntSort), ("ad", IntSort), ("lp", IntSort), ("metric", IntSort),
+          ("med", IntSort), ("rid", IntSort), ("bgpInternal", BoolSort), ("valid", BoolSort)))
     }
   }
 
-  case class Filter(cmd: MS) extends ToZ3[Prog[Decl]] {
-    override def toZ3: Prog[Decl] = cmd.toZ3
+  case class Filter(cmd: MS) extends ToZ3[Assert] {
+    override def toZ3: Assert = Assert(cmd.toZ3)
   }
 
   trait IpPrefix {
     val prefix: Int
     val length: Int
   }
-  object IpPrefix {
-    override def toZ3: Sort = BitVecSort(length)
+
+  object IpPrefix extends ToZ3[Sort] {
+    override def toZ3: Sort = BitVecSort(32)
   }
 
-  case class Ip(ip: Int) extends ToZ3[Hex] with IpPrefix {
-    def toZ3: Hex = Hex("#x" ++ ip.toHexString.reverse.padTo(8, '0').reverse)
+
+  case class Ip(prefix: Int) extends ToZ3[Hex] with IpPrefix {
+    val length = 32
+    def toZ3: Hex = Hex("#x" ++ prefix.toHexString.reverse.padTo(8, '0').reverse)
   }
+
   object Ip extends ToZ3[Sort] {
-    val length: Int = 32
-
-    override def toZ3: Sort = BitVecSort
+    override def toZ3: Sort = BitVecSort(32)
   }
 
   type Metric = Int
@@ -84,9 +90,9 @@ object Network {
   case class Packet(srcIp: Option[Ip], srcPort: Option[Port], dstIp: Option[Ip], dstPort: Option[Port])
     extends ToZ3[Prog[Decl]] {
     override def toZ3: Prog[Decl] = Seq (
-      CreateSym("srcIp", Z3.BitVecSort(Ip.length)),
+      CreateSym("srcIp", Z3.BitVecSort(32)),
       CreateSym("srcPort", Z3.IntSort),
-      CreateSym("dstIp", Z3.BitVecSort(Ip.length)),
+      CreateSym("dstIp", Z3.BitVecSort(32)),
       CreateSym("dstPort", Z3.IntSort)
     )
   }

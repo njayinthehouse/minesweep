@@ -1,25 +1,36 @@
 import smt.Z3
-import smt.Z3.{bitVecSort, createEqual, createSym, intSort}
+import smt.Z3._
 
 object Network {
   trait Address
-
-  object Graph {
-    case class T(vs: Set[Vertex], es: Set[Edge])
-
-    case class Edge(v: Vertex, w: Vertex, back: ControlPlaneRec, front: ControlPlaneRec)
-    // TODO: Add filters
-
-    // Vertex is a device (node) in the network graph
-    trait Vertex
-    // Routers are subrouters running a protocol
-    case class Router(name: String, ip: Ip, protocol: Protocol) extends Graph.Vertex
-    case class Neighbor(name: String, ip: Ip) extends Graph.Vertex
-    // Chose not to put a graph in subnet, since we're abstracting over that
-    case class Subnet(name: String, prefix: IpPrefix) extends Graph.Vertex
+/*
+  type Graph = graph.Graph[(ControlPlaneRec, ControlPlaneRec)]
+  type Vertex = graph.Graph.Vertex
+  type Edge = graph.Graph.Edge[(ControlPlaneRec, ControlPlaneRec)]
+*/
+  case class Graph(vs: Set[Graph.Vertex], es: Set[Graph.Edge]) extends smt.ToZ3 {
+    override def toZ3: T = es flatMap toZ3
   }
 
-    case class ControlPlaneRec
+  object Graph {
+
+    case class Edge(v: Vertex, w: Vertex,
+                    front: ControlPlaneRec, back: ControlPlaneRec,
+                    inFilter: Filter, outFilter: Filter) extends smt.ToZ3 {
+
+      override def toZ3: Z3.Stmt = inFilter.toZ3 ++ outFilter.toZ3
+    }
+
+    trait Vertex
+  }
+
+  // Routers are subrouters running a protocol
+  case class Router(name: String, ip: Ip, protocol: Protocol) extends Graph.Vertex
+  case class Neighbor(name: String, ip: Ip) extends Graph.Vertex
+  // Chose not to put a graph in subnet, since we're abstracting over that
+  case class Subnet(name: String, prefix: IpPrefix) extends Graph.Vertex
+
+  case class ControlPlaneRec
   (prefix: IpPrefix,
    length: Int,
    address: Address,
@@ -30,6 +41,7 @@ object Network {
    bgpInternal: Boolean,
    valid: Boolean)
 
+  trait Filter extends smt.ToZ3
 
   case class Ip(ip: Int) {
     def toHexString: String = "#x" ++ ip.toHexString.reverse.padTo(8, '0').reverse
@@ -70,5 +82,5 @@ object Network {
   trait Protocol
   case object OSPF extends Protocol
   case object BGP extends Protocol
-  case object CON extends Protocol=
+  case object CON extends Protocol
 }

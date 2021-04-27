@@ -1,5 +1,5 @@
 import smt.{Z3, ToZ3}
-import smt.Z3._
+import smt.Z3.{CreateSym, CreateEqual, Hex, Stmts, Sym}
 
 object Network {
   trait Address
@@ -8,17 +8,18 @@ object Network {
   type Vertex = graph.Graph.Vertex
   type Edge = graph.Graph.Edge[(ControlPlaneRec, ControlPlaneRec)]
 */
-  case class Graph(vs: Set[Graph.Vertex], es: Set[Graph.Edge]) extends ToZ3 {
-    override def toZ3:  = es flatMap toZ3
+  case class Graph(vs: Set[Graph.Vertex], es: Set[Graph.Edge]) extends ToZ3[Stmts] {
+    override def toZ3: Z3.Stmts = Stmts(es.map(_.toZ3).toSeq)
   }
 
   object Graph {
 
     case class Edge(v: Vertex, w: Vertex,
                     front: ControlPlaneRec, back: ControlPlaneRec,
-                    inFilter: Filter, outFilter: Filter) extends ToZ3 {
+                    inFilter: Filter, outFilter: Filter)
+      extends ToZ3[Stmts] {
 
-      override def toZ3: Z3.Stmt = inFilter.toZ3 ++ outFilter.toZ3
+      override def toZ3: Z3.Stmts = inFilter.toZ3 ++ outFilter.toZ3
     }
 
     trait Vertex
@@ -41,14 +42,13 @@ object Network {
    bgpInternal: Boolean,
    valid: Boolean)
 
-  trait Filter extends smt.ToZ3
+  trait Filter extends ToZ3[Stmts]
 
-  case class Ip(ip: Int) {
-    def toHexString: String = "#x" ++ ip.toHexString.reverse.padTo(8, '0').reverse
+  case class Ip(ip: Int) extends ToZ3[Hex] {
+    def toZ3: Hex = Z3.Hex("#x" ++ ip.toHexString.reverse.padTo(8, '0').reverse)
   }
   object Ip {
     val length: Int = 32
-    implicit def of(x: Int): Ip = Ip(x)
   }
 
   trait IpPrefix {
@@ -58,25 +58,25 @@ object Network {
   type Metric = Int
   type MED = Int
 
-  case class Packet(srcIp: Option[Ip], srcPort: Option[Port], dstIp: Option[Ip], dstPort: Option[Port]) {
-    def toZ3: Z3.T = {
-      createSym("srcIp", bitVecSort(Ip.length)) ++
-        createSym("srcPort", intSort) ++
-        createSym("dstIp", bitVecSort(Ip.length)) ++
-        createSym("dstPort", intSort) ++
-        srcIp.map(ip => createEqual("srcIp", ip toHexString)).getOrElse("") ++
-        srcPort.map(port => createEqual("srcPort", port.port toString)).getOrElse("") ++
-        dstIp.map(ip => createEqual("dstIp", ip toHexString)).getOrElse("") ++
-        dstPort.map(port => createEqual("dstPort", port.port toString)).getOrElse("")
+  case class Packet(srcIp: Option[Ip], srcPort: Option[Port], dstIp: Option[Ip], dstPort: Option[Port])
+    extends ToZ3[Z3.Stmt] {
+    override def toZ3: Z3.Stmt = {
+      CreateSym("srcIp", Z3.BitVecSort(Ip.length)) ++
+        CreateSym("srcPort", Z3.IntS) ++
+        CreateSym("dstIp", Z3.BitVecSort(Ip.length)) ++
+        CreateSym("dstPort", Z3.IntS) ++
+        srcIp.map(ip => CreateEqual(Sym("srcIp"), ip.toZ3)) ++
+        srcPort.map(port => CreateEqual(Sym("srcPort"), port.toZ3)) ++
+        dstIp.map(ip => CreateEqual(Sym("dstIp"), ip.toZ3)) ++
+        dstPort.map(port => CreateEqual(Sym("dstPort"), port toZ3))
     }
   }
 
   // Temporary main for testing.
-  def main(args: Array[String]): Unit = print(Packet(Some(1), Some(2), Some(3), Some(4)).toZ3)
+  def main(args: Array[String]): Unit = print(Packet(Some(Ip(1)), Some(Port(2)), Some(Ip(3)), Some(Port(4))).toZ3)
 
-  case class Port(port: Int)
-  object Port {
-    implicit def of(x: Int): Port = Port(x)
+  case class Port(port: Int) extends ToZ3[Z3.Num] {
+    override def toZ3: Z3.Num = Z3.Num(port)
   }
 
   trait Protocol

@@ -1,7 +1,8 @@
 import Network.Ip
+import smt.{ToZ3, Z3}
 
 // MineSweeper-lang
-abstract class MS extends smt.ToZ3 {
+abstract class MS extends ToZ3[Z3.Stmts] {
 
   def freeVars: Set[Var] = this match {
     case Var(cpr, x) => Set(Var(cpr, x))
@@ -13,7 +14,7 @@ abstract class MS extends smt.ToZ3 {
     case _ => Set()
   }
 
-  def toZ3: smt.Z3.T = ???
+  def toZ3: Z3.Stmts = ???
 
 }
 case class Cpr(name: String) extends MS // Control plane record

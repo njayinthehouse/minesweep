@@ -1,5 +1,5 @@
 import smt.{ToZ3, Z3}
-import smt.Z3.{Assert, BitVecSort, CreateRecordSort, BoolSort, IntSort, CreateSym, Decl, Hex, Prog, Sort, Stmt, Sym}
+import smt.Z3.{Assert, BitVecSort, CreateCprSort, CreateSym, Decl, Hex, IntSort, Prog, Sort}
 
 object Network {
 
@@ -18,24 +18,24 @@ object Network {
 
     case class Edge(v: Vertex, w: Vertex,
                     front: ControlPlaneRecord, back: ControlPlaneRecord,
-                    inFilter: Filter, outFilter: Filter)
+                    inFilter: Option[Filter], outFilter: Option[Filter])
       extends ToZ3[Prog[Assert]] {
 
-      override def toZ3: Prog[Assert] = Seq(inFilter.toZ3, outFilter.toZ3)
+      override def toZ3: Prog[Assert] = inFilter.toSeq.map(_.toZ3) ++ outFilter.toSeq.map(_.toZ3)
     }
 
     abstract class Vertex extends ToZ3[Prog[Decl]] {
-      val incoming: Edge = ???
-      val outgoing: Edge
+      val incoming: Seq[Edge] = ???
+      val outgoing: Seq[Edge]
       val name: String
 
-      override def toZ3: Prog[Decl] = outgoing.toZ3.ss :+ CreateSym(name, IntSort)
+      override def toZ3: Prog[Decl] = outgoing.flatMap(_.toZ3.ss) :+ CreateSym(name, IntSort)
     }
 
-    case class Router(name: String, outgoing: Edge, ip: Ip, protocol: Protocol) extends Vertex
-    case class Neighbor(name: String, outgoing: Edge, ip: Ip) extends Vertex
+    case class Router(name: String, outgoing: Seq[Edge], ip: Ip, protocol: Protocol) extends Vertex
+    case class Neighbor(name: String, outgoing: Seq[Edge], ip: Ip) extends Vertex
     // TODO: should we keep it or just use Neighbor only?
-    case class Subnet(name: String, outgoing: Edge, prefix: IpPrefix) extends Vertex
+    case class Subnet(name: String, outgoing: Seq[Edge], prefix: IpPrefix) extends Vertex
 
   }
 
@@ -55,9 +55,7 @@ object Network {
     override def toZ3: Sort = ???
 
     object Declaration extends ToZ3[Decl] {
-      override def toZ3: Decl =
-        CreateRecordSort("CPRSort", Seq(("prefix", Ip.toZ3), ("length", IntSort), ("ad", IntSort), ("lp", IntSort), ("metric", IntSort),
-          ("med", IntSort), ("rid", IntSort), ("bgpInternal", BoolSort), ("valid", BoolSort)))
+      override def toZ3: Decl = CreateCprSort
     }
   }
 

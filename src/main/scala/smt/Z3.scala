@@ -38,6 +38,7 @@ object Z3 {
 
   case class Sym(x: String) extends Expr
   case class Num(n: Int) extends Expr
+  case class Bool(b: Boolean) extends Expr
   case class Hex(s: String) extends Expr
   case class And(e: Expr, es: Seq[Expr]) extends Expr
   case class Or(e: Expr, es: Seq[Expr]) extends Expr
@@ -45,6 +46,7 @@ object Z3 {
   case class Le(e: Expr, u: Expr) extends Expr
   case class Eq(e: Expr, u: Expr) extends Expr
   case class Not(e: Expr) extends Expr
+  case class BvXor(e: Expr, u: Expr) extends Expr
   case class Implies(e: Expr, u: Expr) extends Expr
   case class If(c: Expr, t: Expr, e: Expr) extends Expr
   case class CprProj(x: String, proj: ControlPlaneField) extends Expr
@@ -60,6 +62,7 @@ object Z3 {
       case IntSort => "Int"
       case BoolSort => "Bool"
       case CprSort => CPR_SORT_NAME
+      case BitVecSort(l) => s"(_ BitVec $l)"
     }
   }
 
@@ -67,6 +70,7 @@ object Z3 {
     override def toString: String = this match {
       case Sym(x) => x
       case Num(n) => n.toString
+      case Bool(b) => b.toString
       case Hex(s) => s
       case And(e, es) => s"(and $e ${es.flatMap(_.toString)})"
       case Or(e, es) => s"(or $e ${es.flatMap(_.toString)}"
@@ -74,6 +78,7 @@ object Z3 {
       case Le(e, u) => s"(<= $e $u)"
       case Eq(e, u) => s"(= $e $u)"
       case Not(e) => s"(not $e)"
+      case BvXor(e, u) => s"(bvxor $e $u)"
       case Implies(e, u) => s"(=> $e $u)"
       case If(c, t, e) => s"(ite $c $t $e)"
       case CprProj(x, proj) => s"($proj $x)"
@@ -93,7 +98,7 @@ object Z3 {
     override def toString: String = this match {
       case CreateSym(x, sort) => s"(declare-const $x $sort)"
       case CreateCprSort => {
-        s"(declare-datatypes () ($CPR_SORT_NAME (mk-cpr " +
+        s"(declare-datatypes () (($CPR_SORT_NAME (mk-cpr " +
           s"(prefix ${BitVecSort(32)}) " +
           s"(length $IntSort) " +
           s"(ad $IntSort) " +
@@ -102,7 +107,7 @@ object Z3 {
           s"(med $IntSort) " +
           s"(rid $IntSort) " +
           s"(bgpInternal $BoolSort) " +
-          s"(valid $BoolSort)"
+          s"(valid $BoolSort)))))"
       }
       case Assert(e) => s"(assert $e)"
       case Sat => "(check-sat)"
@@ -119,4 +124,3 @@ object Z3 {
 trait ToZ3[T <: Z3.T] {
   def toZ3: T
 }
-

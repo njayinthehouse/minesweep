@@ -50,13 +50,16 @@ object Z3 {
   case class Implies(e: Expr, u: Expr) extends Expr
   case class If(c: Expr, t: Expr, e: Expr) extends Expr
   case class CprProj(x: String, proj: ControlPlaneField) extends Expr
+  
 
   case class CreateSym(x: String, sort: Sort) extends Decl
   case object CreateCprSort extends Decl
   case class Assert(e: Expr) extends Decl
+  case class Echo(s: String) extends Decl
+
   case object Sat extends Stmt
   case object Model extends Stmt
-
+  
   abstract class Sort extends T {
     override def toString: String = this match {
       case IntSort => "Int"
@@ -92,7 +95,7 @@ object Z3 {
     def ==>(that: Expr): Implies = Implies(this, that)
   }
 
-  abstract class Decl extends Stmt
+  abstract class Decl extends Stmt 
 
   abstract class Stmt extends T {
     override def toString: String = this match {
@@ -112,6 +115,7 @@ object Z3 {
       case Assert(e) => s"(assert $e)"
       case Sat => "(check-sat)"
       case Model => "(get-model)"
+      case Echo(s) => "(echo " + "\"" + s + "\")"
     }
   }
 

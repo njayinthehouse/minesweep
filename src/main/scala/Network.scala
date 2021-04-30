@@ -48,11 +48,13 @@ object Network {
     edge2Import: Map[(String, String), Filter], 
     edge2Export: Map[(String, String), Filter], 
     edge2Front: Map[(String, String), String], 
-    edge2Back: Map[(String, String), String]) extends ToZ3[Prog[Decl]] {
-      override def toZ3: Prog[Decl] = {
+    edge2Back: Map[(String, String), String]) extends ToZ3[Prog[Decl]] { 
+      override def toZ3: Prog[Decl] = { 
+        
         (name2Vertex.map { case (_, v) => v.toZ3 }).toList ++
         (edge2Import.map { case (_, f) => f.toZ3 }).toList ++
-        (edge2Export.map { case (_, f) => f.toZ3 }).toList
+        (edge2Export.map { case (_, f) => f.toZ3 }).toList ++
+        Seq(Z3.Echo("emitting graph"))
       }
     }
   

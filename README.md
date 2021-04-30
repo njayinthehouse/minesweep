@@ -16,13 +16,10 @@ Note: Our first reimplementation attempt was also dependent on Batfish, but we e
 TODO
 ----
 - High level properties -- create mapping to MS
-- Change graph interface -- separate router map from graph topology
-    + Use Maps for router id to router information
 - Delete Z3
 - Write testing framework
 - Dead code elimination
 - Hoisting
-- Generate Comments
 
 Bonus
 -----
@@ -30,3 +27,4 @@ Bonus
 - Evaluation testing -- how do we generate network graphs so that we can evaluate our implementation?
 - Input interface for filters
 - pretty-print the graph
+- clean up prog

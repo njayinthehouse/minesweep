@@ -22,9 +22,11 @@ TODO
 - Write testing framework
 - Dead code elimination
 - Hoisting
+- Generate Comments
 
 Bonus
 -----
 - Additional optimizations: I'm not confident that we will be able to find any notable new optimizations since the language defined is quite simple.
 - Evaluation testing -- how do we generate network graphs so that we can evaluate our implementation?
 - Input interface for filters
+- pretty-print the graph

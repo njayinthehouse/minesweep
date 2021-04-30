@@ -23,6 +23,8 @@ TODO
 
 Bonus
 -----
+- ???
+- Best OSPF is just Djikstra
 - Additional optimizations: I'm not confident that we will be able to find any notable new optimizations since the language defined is quite simple.
 - Evaluation testing -- how do we generate network graphs so that we can evaluate our implementation?
 - Input interface for filters

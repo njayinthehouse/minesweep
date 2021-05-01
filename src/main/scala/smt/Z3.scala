@@ -105,8 +105,8 @@ package smt {
         case Num(n) => n.toString
         case Bool(b) => b.toString
         case Hex(s) => s
-        case And(es) => if (es.isEmpty) "true" else s"(and ${es.flatMap(_.toString)})"
-        case Or(es) => if (es.isEmpty) "false" else s"(or ${es.flatMap(_.toString)}"
+        case And(es) => if (es.isEmpty) "true" else s"(and ${es.map(_.toString).foldLeft("")(_ ++ _)})"
+        case Or(es) => if (es.isEmpty) "false" else s"(or ${es.map(_.toString).foldLeft("")(_ ++ _)})"
         case Lt(e, u) => s"(< $e $u)"
         case Le(e, u) => s"(<= $e $u)"
         case Eq(e, u) => s"(= $e $u)"
@@ -154,13 +154,15 @@ package smt {
       }
     }
 
-    case class Prog[S <: Stmt](ss: Seq[S]) extends T
+    case class Prog[S <: Stmt](ss: Seq[S]) extends T {
+      override def toString: String = ss.map(_.toString).foldLeft("")(_ ++ "\n" ++ _)
+    }
 
     // Additional API
-    def Preferred(r1: String, r2: String): Or = ((CprProj(r2, Ad) <= CprProj(r1, Ad))
+    def Preferred(r1: String, r2: String): Or =
+      (( CprProj(r2, Ad) <= CprProj(r1, Ad))
       || (CprProj(r2, Ad) =? CprProj(r1, Ad) && CprProj(r2, Lp) <= CprProj(r1, Lp))
-      || (CprProj(r2, Ad) =? CprProj(r1, Ad) && CprProj(r2, Lp) =? CprProj(r1, Lp)
-      && CprProj(r2, Metric) <= CprProj(r1, Metric)))
+      || (CprProj(r2, Ad) =? CprProj(r1, Ad) && CprProj(r2, Lp) =? CprProj(r1, Lp)  && CprProj(r2, Metric) <= CprProj(r1, Metric)))
     
     def FBM(prefix: CprProj, ip: CprProj, length: Int): Eq = 
       BvXor(prefix, Hex(createMask(length))) =? BvXor(ip, Hex(createMask(length)))

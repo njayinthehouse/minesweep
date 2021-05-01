@@ -1,8 +1,8 @@
-import Network.Graph.Vertex
-import Network.IpPrefix
+import Network.{IpPrefix, Vertex}
 import smt.{Z3, ToZ3}
 
 package frontEnd {
+
 
   abstract class Command
   case class AddEdge(src: Vertex, dst: Vertex) extends Command

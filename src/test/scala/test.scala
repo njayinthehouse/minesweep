@@ -71,13 +71,13 @@ class MinesweepTest extends FunSuite {
   }
   
   test("graph_test") {
-    val r1: Graph.Vertex = Router(1, Ip(12345), BGP)
-    val r2: Graph.Vertex = Router(2, Ip(54321), BGP)
+    val r1: Vertex = Router(1, Ip(12345), BGP)
+    val r2: Vertex = Router(2, Ip(54321), BGP)
     val edge = (1, 2)
     val rec1 = "rec1"
     val rec2 = "rec2"
-    val inFilter = Filter(Eq(CprProj(Sym(rec1), Z3.Valid), Bool(true)))
-    val exFilter = Filter(Eq(CprProj(Sym(rec2), Z3.Valid), Bool(true)))
+    val inFilter = Eq(CprProj(Sym(rec1), Z3.Valid), Bool(true))
+    val exFilter = Eq(CprProj(Sym(rec2), Z3.Valid), Bool(true))
 
     val vertices = Set(r1, r2)
     val edges = Set(edge)
@@ -93,7 +93,7 @@ class MinesweepTest extends FunSuite {
       CreateSym("rec1", Z3.CprSort),
       CreateSym("rec2", Z3.CprSort)
     ) ++
-      graph.toZ3.ss ++
+      graph.declaration.toZ3.ss ++
       Seq(
         Z3.Sat,
         Z3.Model

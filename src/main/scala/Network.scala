@@ -125,7 +125,6 @@ object Network {
 
   type VertexId = Int
 
-<<<<<<< HEAD
   // Temporary main for testing.
   def main(args: Array[String]): Unit = {
     def FBM_reflexivity(): Unit = {

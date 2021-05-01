@@ -16,8 +16,6 @@ Note: Our first reimplementation attempt was also dependent on Batfish, but we e
 TODO
 ----
 - High level properties -- create mapping to MS
-- Delete Z3
-- Write testing framework
 - Dead code elimination
 - Hoisting
 

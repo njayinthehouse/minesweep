@@ -157,10 +157,6 @@ package smt {
     case class Prog[S <: Stmt](ss: Seq[S]) extends T
 
     // Additional API
-    def DataFwd(r1: VertexId, r2: VertexId): Sym = Sym(s"DataFwd_${r1}_$r2")
-
-    def ControlFwd(r1: VertexId, r2: VertexId): Sym = Sym(s"ControlFwd_${r1}_$r2")
-
     def Preferred(r1: String, r2: String): Or = ((CprProj(r2, Ad) <= CprProj(r1, Ad))
       || (CprProj(r2, Ad) =? CprProj(r1, Ad) && CprProj(r2, Lp) <= CprProj(r1, Lp))
       || (CprProj(r2, Ad) =? CprProj(r1, Ad) && CprProj(r2, Lp) =? CprProj(r1, Lp)

@@ -115,60 +115,6 @@ object Network {
   }
 
 
-  // Temporary main for testing.
-  def main(args: Array[String]): Unit = {
-    /*
-     * Testing FBM (reflexivity)
-     */
-    {
-      val FBM_test = Seq(
-        CreateCprSort,
-        CreateSym("c", Z3.CprSort),
-        Assert(FBM(CprProj("c", Z3.Prefix), CprProj("c", Z3.Prefix), 5)),
-        Z3.Sat,
-        Z3.Model
-      )
-      for (i <- FBM_test) println(i)
-      println("=======================================================================")
-    }
-
-    /*
-     * Testing Graph
-     */
-    {
-      val r1: Graph.Vertex = Router(1, Ip(12345), BGP)
-      val r2: Graph.Vertex = Router(2, Ip(54321), BGP)
-      val edge = (1, 2)
-      val rec1 = "rec1"
-      val rec2 = "rec2"
-      val inFilter = Filter(Eq(CprProj(Sym(rec1), Z3.Valid), Bool(true)))
-      val exFilter = Filter(Eq(CprProj(Sym(rec2), Z3.Valid), Bool(true)))
-
-      val vertices = Set(r1, r2)
-      val edges = Set(edge)
-      val edge2Import = Map((edge -> inFilter))
-      val edge2Export = Map((edge -> exFilter))
-      val edge2Front = Map((edge -> rec1))
-      val edge2Back = Map((edge -> rec2))
-
-      val graph = Graph(vertices, edges, edge2Import, edge2Export, edge2Front, edge2Back)
-
-      val GRAPH_test = Seq(
-        CreateCprSort,
-        CreateSym("rec1", Z3.CprSort),
-        CreateSym("rec2", Z3.CprSort)
-      ) ++
-        graph.toZ3.ss ++
-        Seq(
-          Z3.Sat,
-          Z3.Model
-        )
-      for (i <- GRAPH_test) println(i)
-      println("=======================================================================")
-    }
-
-  }
-
   case class Port(port: Int) extends ToZ3[Z3.Num] {
     override def toZ3: Z3.Num = Z3.Num(port)
   }

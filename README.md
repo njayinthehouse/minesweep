@@ -24,7 +24,6 @@ Is best constraint correct? Can best be invalid? Then what happens to controlfwd
 TODO
 ----
 - High level properties -- create mapping to MS
-- Write testing framework
 - Dead code elimination
 - Hoisting
 

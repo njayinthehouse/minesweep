@@ -1,0 +1,5 @@
+(declare-datatypes () ((ControlPlaneRecord (mk-cpr (prefix (_ BitVec 32)) (length Int) (ad Int) (lp Int) (metric Int) (med Int) (rid Int) (bgpInternal Bool) (valid Bool)))))
+(declare-const c ControlPlaneRecord)
+(assert (= (bvxor (prefix c) #b11111000000000000000000000000000) (bvxor (prefix c) #b11111000000000000000000000000000)))
+(check-sat)
+(get-model)

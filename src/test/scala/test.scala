@@ -67,7 +67,6 @@ class MinesweepTest extends FunSuite {
       Z3.Sat,
       Z3.Model
     )
-    // writeTo(FBM_test, "fbm")
     check(FBM_test, "fbm")
   }
   
@@ -99,7 +98,6 @@ class MinesweepTest extends FunSuite {
         Z3.Sat,
         Z3.Model
       )
-    // writeTo(GRAPH_test, "graph")
     check(GRAPH_test, "graph")
   }
 }

@@ -7,6 +7,14 @@ object Network {
 
   type VertexId = Int
 
+  case class Best(routerName: VertexId, protocol: Protocol) extends ToZ3[Sym] {
+    override def toZ3: Sym = s"r${routerName}_best_$protocol"
+
+    object Declaration extends ToZ3[Decl] {
+      def toZ3: Decl = ???
+    }
+  }
+
   def createMask(length: Int): String = {
     val a = for(_ <- 0 until length) yield "1"
     val b = for (_ <- length until 32) yield "0"
@@ -20,22 +28,22 @@ object Network {
                    edge2Front: Map[(VertexId, VertexId), String],
                    edge2Back: Map[(VertexId, VertexId), String]) extends ToZ3[Prog[Decl]] {
 
-    private def BEST(name: Int, protocol: Protocol): String = s"r${name}_best_$protocol"
-
       private def best(vName: Int, protocol: Protocol): Prog[Decl] =
-        CreateSym(s"${vName}_best_$protocol", Z3.CprSort)+:
-          Assert(Or(for {
+        if (protocol == BGP) Seq (
+          CreateSym(s"${vName}_best_$protocol", Z3.CprSort),
+          Assert (Or (for {
             ((uName, _), cprName) <- edge2Front.toSeq
             if vName == uName
-          } yield BEST(vName, protocol) =? cprName)) +:
-          (for {
-            ((uName, _), cprName) <- edge2Front
+          } yield Best(vName, protocol).toZ3 =? cprName)),
+          Assert (And (for {
+            ((uName, _), cprName) <- edge2Front.toSeq
             if vName == uName
-          } yield Assert(Preferred(BEST(vName, protocol), cprName))).toSeq
+          } yield Preferred(Best(vName, protocol).toZ3, cprName)))
+        ) else Seq()
 
-
-      override def toZ3: Prog[Decl] =
-        (vs.map(_.toZ3)).toSeq ++
+    override def toZ3: Prog[Decl] =
+      (vs.map(_.toZ3)).toSeq ++
+        (vs.flatMap{ case r: Router => best(r.name, r.protocol) })
         (edge2Import.map(_._2.toZ3)).toSeq ++
         (edge2Export.map(_._2.toZ3)).toSeq
     }
@@ -59,7 +67,7 @@ object Network {
     case class Subnet(name: VertexId, prefix: IpPrefix) extends Vertex
   }
 
-
+  def ControlFwd(r1: VertexId, r2: VertexId): Sym = Sym(s"ControlFwd_${r1}_$r2")
 
   object ControlPlaneRecord extends ToZ3[Sort] {
     override def toZ3: Sort = Z3.CprSort
@@ -68,6 +76,8 @@ object Network {
       override def toZ3: Decl = CreateCprSort
     }
   }
+
+  def DataFwd(r1: VertexId, r2: VertexId): Sym = Sym(s"DataFwd_${r1}_$r2")
 
   case class Filter(cmd: Z3.Expr) extends ToZ3[Assert] {
     override def toZ3: Assert = Assert(cmd)

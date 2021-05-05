@@ -28,6 +28,14 @@ object Network {
     }
   }
 
+  case class CanReach(r1: VertexId) extends ToZ3[Sym] {
+    override def toZ3: Sym = this.toString
+
+    override def toString: CprId = s"canReach_$r1"
+
+    val declaration = ???
+  }
+
   case class ControlFwd(r1: VertexId, r2: VertexId) extends ToZ3[Sym] {
     override def toZ3: Sym = this.toString
 
@@ -112,6 +120,12 @@ object Network {
                                                       } yield (ControlFwd(r1, r2), cprId)
     val faileds: Set[Failed] = es.map { case (r1, r2) => Failed(r1, r2) }
 
+
+    trait Property
+
+    case class CanReachVertex(v: VertexId) extends Property with ToZ3[Prog[Decl]] {
+      override def toZ3: Prog[Decl] = ???
+    }
   }
 
   case class IpPrefix(prefix: Int, length: Int) extends ToZ3[Hex] {

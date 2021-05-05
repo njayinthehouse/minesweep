@@ -15,7 +15,6 @@ import smt.Z3._
 // if the output doesn't match the golden .check file, it will cause the test case
 // to fail and the actual output is names as TEST_NAME.actual.z3
 
-
 class MinesweepTest extends FunSuite {
   val overwriteCheckFiles = false
 
@@ -55,7 +54,7 @@ class MinesweepTest extends FunSuite {
       writeTo(code, name)
     } else if (code != expected) {
       writeTo(code, actualName)
-      assert(false, name)
+      assert(condition = false, name)
     }
   }
 

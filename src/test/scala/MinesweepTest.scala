@@ -152,7 +152,7 @@ class MinesweepTest extends FunSuite {
     val e12 = (1, 2)
     val e23 = (2, 3)
     val front = Map((e12 -> "rec2"), (e23 -> "rec4"))
-    val back = Map((e12 -> "rec1"), (e23 -> "rec3"))
+    val back  = Map((e12 -> "rec1"), (e23 -> "rec3"))
 
     val graph = Graph(Set(R1, R2, R3), Set(e12, e23), Map(), Set(), Set(), front, back)
 
@@ -169,6 +169,37 @@ class MinesweepTest extends FunSuite {
       Z3.Model
     )
     check(code, "fault-tolerance")
+  }
+
+  // R  --e1--> N1
+  //   |--e2--> N2
+  //   |--e3--> N3
+  test("neighbor-preference") {
+    val R  = Router(0, Ip(111), BGP)
+    val N1 = Router(1, Ip(222), BGP)
+    val N2 = Router(2, Ip(333), BGP)
+    val N3 = Router(3, Ip(444), BGP)
+
+    val e10 = (0, 1)
+    val e20 = (0, 2)
+    val e30 = (0, 3)
+
+    val front = Map((e10 -> "e1"), (e20 -> "e2"), (e30 -> "e3"))
+
+    val graph = Graph(Set(R, N1, N2, N3), Set(e10, e20, e30), Map(), Set(), Set(), front, Map())
+
+    val code = Seq(
+      CreateCprSort,
+      CreateSym("e1", Z3.CprSort),
+      CreateSym("e2", Z3.CprSort),
+      CreateSym("e3", Z3.CprSort)
+    ) ++
+      graph.declaration.toZ3.ss ++ graph.NeighborPreference(0, Seq(1,2,3)).toZ3.ss
+      Seq(
+        Z3.Sat,
+        Z3.Model
+      )
+    check(code, "neighbor-preference")
   }
 
   test("graph_test") {

@@ -207,9 +207,9 @@ object Network {
 
     case class NeighborPreference(v: VertexId, vs: Seq[VertexId]) extends Property with ToZ3[Prog[Stmt]] {
       override def toZ3: Prog[Stmt] = {
-        vs.foreach { i => assert(es.contains((i, v)), "router v doesn't contain neighbor") }
+        vs.foreach { i => assert(es.contains((v, i)), "router v doesn't contain neighbor") }
         val valids = vs.map { i =>
-          val cprId = edge2Front((i, v))
+          val cprId = edge2Front((v, i))
           CprProj(cprId, Valid)
         }
         val ctrlfwds = vs.map { i => ControlFwd(v, i).toZ3 }

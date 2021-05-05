@@ -49,7 +49,11 @@ package smt {
 
     case object CprSort extends Sort
 
-    case class Sym(name: String) extends Expr
+    trait Id extends Expr
+
+    case class Sym(name: String) extends Id
+
+    case class CprProj(x: String, proj: ControlPlaneField) extends Id
 
     case class Num(n: Int) extends Expr
 
@@ -74,8 +78,6 @@ package smt {
     case class Implies(e: Expr, u: Expr) extends Expr
 
     case class If(c: Expr, t: Expr, e: Expr) extends Expr
-
-    case class CprProj(x: String, proj: ControlPlaneField) extends Expr
 
 
     case class CreateSym(x: String, sort: Sort) extends Decl
@@ -163,8 +165,9 @@ package smt {
       (( CprProj(r2, Ad) <= CprProj(r1, Ad))
       || (CprProj(r2, Ad) =? CprProj(r1, Ad) && CprProj(r2, Lp) <= CprProj(r1, Lp))
       || (CprProj(r2, Ad) =? CprProj(r1, Ad) && CprProj(r2, Lp) =? CprProj(r1, Lp)  && CprProj(r2, Metric) <= CprProj(r1, Metric)))
-    
-    def FBM(prefix: CprProj, ip: CprProj, length: Int): Eq = 
+
+
+    def FBM(prefix: Expr, ip: Expr, length: Int): Expr =
       BvXor(prefix, Hex(createMask(length))) =? BvXor(ip, Hex(createMask(length)))
 
     object Prog {
@@ -177,6 +180,12 @@ package smt {
       implicit def of(s: String): Sym = Sym(s)
 
       implicit def to(s: Sym): String = s.name
+    }
+
+    object Num {
+      implicit def of(n: Int): Num = Num(n)
+
+      implicit def to(n: Num): Int = n.n
     }
   }
 

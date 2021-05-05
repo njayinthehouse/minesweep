@@ -4,7 +4,14 @@ import smt.Z3._
 
 object Network {
 
+  // The expr is a BitVecSort in Z3
+  case class AccessControlList(blacklist: Seq[IpPrefix]) extends ToZ3[Expr] {
+    override def toZ3: Expr = Not(Or(blacklist.map(prefix => FBM(prefix.toZ3, Packet.dstIp.toZ3, prefix.length))))
+  }
+
   // Best variable
+  // TODO: Make sure best is valid -- is this a problem in the paper?
+  // This is general enough for symbolic bests for any protocol, but we only define BGP
   case class Best(routerName: VertexId, protocol: Protocol) extends ToZ3[Sym] {
     override def toZ3: Sym = this.toString
 
@@ -13,13 +20,28 @@ object Network {
     def declaration(cprNames: Seq[String]): ToZ3[Prog[Decl]] = new ToZ3[Prog[Decl]] {
       override def toZ3: Prog[Decl] =
         CreateSym(Best.this.toString, CprSort) +:
-          Assert(bestIsOne) +:
+          Assert(atLeastOneBest) +:
           bestIsPreferred.map(Assert(_))
 
       val bestIsPreferred: Seq[Or] = cprNames.map(Preferred(Best.this.toString, _))
-      val bestIsOne: Or = Or(cprNames.map(Best.this.toString =? _))
+      val atLeastOneBest: Or = Or(cprNames.map(Best.this.toString =? _))
     }
   }
+
+  case class ControlFwd(r1: VertexId, r2: VertexId) extends ToZ3[Sym] {
+    override def toZ3: Sym = this.toString
+
+    override def toString: String = s"controlfwd_${r1}_$r2"
+
+    def declaration(cprName: String): ToZ3[Prog[Decl]] = new ToZ3[Prog[Decl]] {
+      override def toZ3: Prog[Decl] = Seq(
+        CreateSym(ControlFwd.this.toString, BoolSort),
+        Assert(ControlFwd.this.toZ3 =? (CprProj(cprName, Valid) && (cprName =? Best(r1, BGP).toZ3)))
+      )
+    }
+  }
+
+  type CprId = String
 
   def createMask(length: Int): String = {
     val a = for(_ <- 0 until length) yield "1"
@@ -27,39 +49,69 @@ object Network {
     "#b" + a.reduce((x, y) => x + y) + b.reduce((x, y) => x + y)
   }
 
-  def ControlFwd(r1: VertexId, r2: VertexId): Sym = Sym(s"ControlFwd_${r1}_$r2")
-
   object ControlPlaneRecord extends ToZ3[Sort] {
     override def toZ3: Sort = Z3.CprSort
 
-    object Declaration extends ToZ3[Decl] {
+    val declaration: ToZ3[Decl] = new ToZ3[Decl] {
       override def toZ3: Decl = CreateCprSort
     }
   }
 
-  def DataFwd(r1: VertexId, r2: VertexId): Sym = Sym(s"DataFwd_${r1}_$r2")
+  case class DataFwd(r1: VertexId, r2: VertexId, acl: AccessControlList) extends ToZ3[Sym] {
+    //assert(acl.r == r1)
 
-  type Filter = Z3.Expr
+    override def toZ3: Sym = this.toString
+
+    override def toString: CprId = s"datafwd_${r1}_$r2"
+
+    val declaration: ToZ3[Prog[Decl]] = new ToZ3[Prog[Decl]] {
+      override def toZ3: Prog[Decl] = Seq(
+        CreateSym(DataFwd.this.toString, BoolSort),
+        Assert(DataFwd.this.toZ3 =? ControlFwd(r1, r2).toZ3 && acl.toZ3)
+      )
+    }
+  }
+
+  case class Failed(r1: VertexId, r2: VertexId) extends ToZ3[Sym] {
+    override def toZ3: Sym = this.toString
+
+    override def toString: CprId = super.toString
+
+    val declaration: ToZ3[CreateSym] = new ToZ3[CreateSym] {
+      override def toZ3: CreateSym = CreateSym(Failed.this.toString, BoolSort)
+    }
+  }
+
+  case class Filter(r1: VertexId, r2: VertexId, toZ3: Expr) extends ToZ3[Expr]
 
   case class Graph(vs: Set[Vertex],
                    es: Set[(VertexId, VertexId)],
-                   edge2Import: Map[(VertexId, VertexId), Filter],
-                   edge2Export: Map[(VertexId, VertexId), Filter],
-                   edge2Front: Map[(VertexId, VertexId), String],
-                   edge2Back: Map[(VertexId, VertexId), String]) {
+                   acls: Map[VertexId, AccessControlList],
+                   importFilters: Set[Filter],
+                   exportFilters: Set[Filter],
+                   edge2Front: Map[(VertexId, VertexId), CprId],
+                   edge2Back: Map[(VertexId, VertexId), CprId]) {
 
     val declaration: ToZ3[Prog[Decl]] = new ToZ3[Prog[Decl]] {
       def toZ3: Prog[Decl] =
-        vs.map(_.declaration.toZ3).toSeq ++                                // Vertices
-          edge2Import.values.map(Assert) ++                                // Import filters
-          edge2Export.values.map(Assert) ++                                // Export filters
-          bests.flatMap(_.declaration(bgpRouterNames.toSeq).toZ3)          // Bests
-
-      // We only check best for BGP
-      val bgpRouters: Set[Vertex] = vs.filter { case Router(_, _, BGP) => true }
-      val bgpRouterNames: Set[String] = bgpRouters.map(_.toString)
-      val bests: Set[Best] = bgpRouters.map(r => Best(r.name, BGP))
+        vs.map(_.declaration.toZ3).toSeq ++ // Vertices
+          importFilters.map(filter => Assert(filter.toZ3)) ++ // Import filters
+          exportFilters.map(filter => Assert(filter.toZ3)) ++ // Export filters
+          bests.flatMap(_.declaration(bgpRouterNames.toSeq).toZ3) ++ // Bests
+          controlFwds.flatMap { case (cfwd, cprId) => cfwd.declaration(cprId).toZ3 } ++ // Controlfwds
+          faileds.map(_.declaration.toZ3) // Faileds
     }
+
+    // We only check best for BGP
+    val bgpRouters: Set[Vertex] = vs.filter { case Router(_, _, BGP) => true }
+    val bgpRouterNames: Set[String] = bgpRouters.map(_.toString)
+    val bests: Set[Best] = bgpRouters.map(r => Best(r.name, BGP))
+    val controlFwds: Set[(ControlFwd, CprId)] = for { // TODO: Test controlfwd emission
+      (r1, r2) <- es
+      cprId <- edge2Back.get((r1, r2))
+                                                      } yield (ControlFwd(r1, r2), cprId)
+    val faileds: Set[Failed] = es.map { case (r1, r2) => Failed(r1, r2) }
+
   }
 
   case class IpPrefix(prefix: Int, length: Int) extends ToZ3[Hex] {
@@ -71,11 +123,11 @@ object Network {
     def toZ3: Hex = Hex("#x" ++ prefix.toHexString.reverse.padTo(8, '0').reverse)
   }
 
-
   object Ip extends ToZ3[Sort] {
     override def toZ3: Sort = BitVecSort(32)
   }
 
+  type LocalPref = Int
   type Metric = Int
   type MED = Int
 
@@ -91,6 +143,12 @@ object Network {
         srcPort.map(x => Assert(Z3.Eq(x.toZ3, Z3.Sym("srcPort")))).toSeq ++
         dstIp.map(x => Assert(Z3.Eq(x.toZ3, Z3.Sym("dstIp")))).toSeq ++
         dstPort.map(x => Assert(Z3.Eq(x.toZ3, Z3.Sym("dstPort")))).toSeq
+  }
+  object Packet {
+    val srcIp: ToZ3[Sym] = new ToZ3[Sym] { override def toZ3: Sym = "srcIp" }
+    val dstIp: ToZ3[Sym] = new ToZ3[Sym] { override def toZ3: Sym = "dstIp" }
+    val srcPort: ToZ3[Sym] = new ToZ3[Sym] { override def toZ3: Sym = "srcPort" }
+    val dstPort: ToZ3[Sym] = new ToZ3[Sym] { override def toZ3: Sym = "dstPort" }
   }
 
   case class Port(port: Int) extends ToZ3[Num] {
@@ -126,7 +184,7 @@ object Network {
   type VertexId = Int
 
   // Temporary main for testing.
-  def main(args: Array[String]): Unit = {
+  def main(args: Array[String]): Unit = ??? /*{
     def FBM_reflexivity(): Unit = {
       val FBM_test = Seq(
         CreateCprSort,
@@ -144,8 +202,8 @@ object Network {
       val edge = (1, 2)
       val rec1 = "rec1"
       val rec2 = "rec2"
-      val inFilter = CprProj(Sym(rec1), Z3.Valid) =? Bool(true)
-      val exFilter = CprProj(Sym(rec2), Z3.Valid) =? Bool(true)
+      val inFilter = Filter(CprProj(Sym(rec1), Z3.Valid) =? Bool(true))
+      val exFilter = Filter(CprProj(Sym(rec2), Z3.Valid) =? Bool(true))
 
       val vertices = Set(r1, r2)
       val edges = Set(edge)
@@ -154,7 +212,7 @@ object Network {
       val edge2Front = Map(edge -> rec1)
       val edge2Back = Map(edge -> rec2)
 
-      val graph = Graph(vertices, edges, edge2Import, edge2Export, edge2Front, edge2Back)
+      val graph = Graph(vertices, edges, Map(), edge2Import, edge2Export, edge2Front, edge2Back)
 
       val GRAPH_test = Seq(
         CreateCprSort,
@@ -175,5 +233,5 @@ object Network {
     }
 
     graph1()
-  }
+  }*/
 }

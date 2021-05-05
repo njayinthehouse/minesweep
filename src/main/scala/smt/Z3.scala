@@ -121,6 +121,21 @@ package smt {
         case CprProj(x, proj) => s"($proj $x)"
       }
 
+      def freeSyms: Set[String] = this match {
+        case Sym(x) => Set(x)
+        case And(es) => es.flatMap(_.freeSyms).toSet
+        case Or(es) => es.flatMap(_.freeSyms).toSet
+        case Lt(e, u) => e.freeSyms ++ u.freeSyms
+        case Le(e, u) => e.freeSyms ++ u.freeSyms
+        case Eq(e, u) => e.freeSyms ++ u.freeSyms
+        case Not(e) => e.freeSyms
+        case BvXor(e, u) => e.freeSyms ++ u.freeSyms
+        case Implies(e, u) => e.freeSyms ++ u.freeSyms
+        case If(c, t, e) => c.freeSyms ++ t.freeSyms ++ e.freeSyms
+        case CprProj(x, _) => Set(x)
+        case _ => Set()
+      }
+
       def &&(that: Expr): And = And(Seq(this, that))
 
       def ||(that: Expr): Or = Or(Seq(this, that))
@@ -159,7 +174,20 @@ package smt {
     }
 
     case class Prog[S <: Stmt](ss: Seq[S]) extends T {
-      override def toString: String = ss.map(_.toString).foldLeft("")(_ ++ "\n" ++ _)
+      override def toString: String = ss.map(_.toString).foldLeft("")((x, y) => s"$x\n$y")
+
+      def withDCE: Prog[S] = {
+        var syms: Set[Sym] = Set()
+        var r: Seq[S] = Seq()
+
+        for (s <- ss.reverse)
+          s match {
+            case CreateSym(x, _) => if (syms.contains(Sym(x))) r ++= Seq(s)
+            case Assert(e) => syms += e.freeSyms
+          }
+
+        Prog(r.reverse)
+      }
     }
 
     // Additional API

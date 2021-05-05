@@ -109,6 +109,7 @@ package smt {
         case Num(n) => n.toString
         case Bool(b) => b.toString
         case Hex(s) => s
+        case Add(es) => s"(+${es.map(_.toString).foldLeft("")((x, y) => s"$x $y")})"
         case And(es) => if (es.isEmpty) "true" else s"(and${es.map(_.toString).foldLeft("")((x, y) => s"$x $y")})"
         case Or(es) => if (es.isEmpty) "true" else s"(or${es.map(_.toString).foldLeft("")((x, y) => s"$x $y")})"
         case Lt(e, u) => s"(< $e $u)"

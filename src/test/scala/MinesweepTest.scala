@@ -15,7 +15,7 @@ import smt.Z3._
 // to fail and the actual output is names as TEST_NAME.actual.z3
 
 class MinesweepTest extends FunSuite {
-  val overwriteCheckFiles = false
+  val overwriteCheckFiles = true
 
   def readFile(name: String): String = {
     try {
@@ -50,7 +50,7 @@ class MinesweepTest extends FunSuite {
     val expected = readFile(fileName)
     deleteFile(actualName)
     if (overwriteCheckFiles) {
-      writeTo(code, name)
+      writeTo(code, fileName)
     } else if (code != expected) {
       writeTo(code, actualName)
       assert(false, name)
@@ -144,7 +144,32 @@ class MinesweepTest extends FunSuite {
     check(ISOLATION_test, "isolation")
   }
 
-  test("fault-tolerance") {???}
+  // R1 -rec1-rec2-> R2 -rec3-rec4-> R3
+  test("fault-tolerance") {
+    val R1 = Router(1, Ip(123), BGP)
+    val R2 = Router(2, Ip(456), BGP)
+    val R3 = Router(3, Ip(789), BGP)
+    val e12 = (1, 2)
+    val e23 = (2, 3)
+    val front = Map((e12 -> "rec2"), (e23 -> "rec4"))
+    val back = Map((e12 -> "rec1"), (e23 -> "rec3"))
+
+    val graph = Graph(Set(R1, R2, R3), Set(e12, e23), Map(), Set(), Set(), front, back)
+
+    val code = Seq(
+      CreateCprSort,
+      CreateSym("rec1", Z3.CprSort),
+      CreateSym("rec2", Z3.CprSort),
+      CreateSym("rec3", Z3.CprSort),
+      CreateSym("rec4", Z3.CprSort),
+    ) ++ graph.declaration.toZ3.ss ++
+    Seq(
+      graph.FaultTolerance(2).toZ3,
+      Z3.Sat,
+      Z3.Model
+    )
+    check(code, "fault-tolerance")
+  }
 
   test("graph_test") {
     val r1: Vertex = Router(1, Ip(12345), BGP)

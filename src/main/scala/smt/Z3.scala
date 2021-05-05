@@ -184,7 +184,11 @@ package smt {
         for (s <- ss.reverse)
           s match {
             case CreateSym(x, _) => if (syms.contains(Sym(x))) r ++= Seq(s)
-            case Assert(e) => syms ++= e.freeSyms.map(Sym(_))
+            case Assert(e) => {
+              syms ++= e.freeSyms.map(Sym(_))
+              r ++= Seq(s)
+            }
+            case _ => r ++= Seq(s)
           }
 
         Prog(r.reverse)

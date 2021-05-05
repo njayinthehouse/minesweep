@@ -127,12 +127,13 @@ object Network {
 
     override def toString: CprId = s"datafwd_${r1}_$r2"
 
-    def declaration(acl: AccessControlList): ToZ3[Prog[Decl]] = new ToZ3[Prog[Decl]] {
+    def declaration: ToZ3[Decl] = new ToZ3[Decl] {
       // Requires that ControlFwd(r1, r2) is created
-      override def toZ3: Prog[Decl] = Seq(
-        CreateSym(DataFwd.this.toString, BoolSort),
-        Assert(DataFwd.this.toZ3 =? ControlFwd(r1, r2).toZ3 && acl.toZ3)
-      )
+      override def toZ3: Decl = CreateSym(DataFwd.this.toString, BoolSort)
+    }
+
+    def assertion(acl: AccessControlList): ToZ3[Decl] = new ToZ3[Decl] {
+      override def toZ3: Decl = Assert(DataFwd.this.toZ3 =? ControlFwd(r1, r2).toZ3 && acl.toZ3)
     }
   }
 
@@ -166,7 +167,8 @@ object Network {
           bests.flatMap(x => x.assertion(vertexToOutCprs(x.routerName)).toZ3) ++
           controlFwds.map(_.declaration.toZ3) ++
           controlFwdsWithCprId.map { case (cfwd, cprId) => cfwd.assertion(cprId).toZ3 } ++ // Controlfwds
-          es.flatMap { case (v, u) => DataFwd(v, u).declaration(acls.getOrElse(v, AccessControlList(Seq()))).toZ3 }
+          es.map { case (v, u) => DataFwd(v, u).declaration.toZ3 } ++
+          es.map { case (v, u) => DataFwd(v, u).assertion(acls.getOrElse(v, AccessControlList(Seq()))).toZ3 }
     }
 
     // We only check best for BGP

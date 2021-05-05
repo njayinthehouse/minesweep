@@ -2,7 +2,6 @@ import org.scalatest.FunSuite
 
 import java.io._ 
 import Network._
-import Network.Graph._
 import smt.Z3
 import smt.Z3._
 
@@ -16,7 +15,7 @@ import smt.Z3._
 // to fail and the actual output is names as TEST_NAME.actual.z3
 
 class MinesweepTest extends FunSuite {
-  val overwriteCheckFiles = false
+  val overwriteCheckFiles = true
 
   def readFile(name: String): String = {
     try {
@@ -51,7 +50,7 @@ class MinesweepTest extends FunSuite {
     val expected = readFile(fileName)
     deleteFile(actualName)
     if (overwriteCheckFiles) {
-      writeTo(code, name)
+      writeTo(code, fileName)
     } else if (code != expected) {
       writeTo(code, actualName)
       assert(false, name)
@@ -68,29 +67,132 @@ class MinesweepTest extends FunSuite {
     )
     check(FBM_test, "fbm")
   }
-  
+
+  test("reachability") {
+    val r1: Vertex = Router(1, Ip(1111), BGP)
+    val r2: Vertex = Router(2, Ip(2222), BGP)
+    val r3: Vertex = Router(3, Ip(3333), BGP)
+    val r4: Vertex = Router(4, Ip(4444), BGP)
+    val edge1 = (1, 2)
+    val edge2 = (2, 3)
+
+    val edge1_front = "edge1_front"
+    val edge1_back = "edge1_back"
+    val edge2_front = "edge2_front"
+    val edge2_back = "edge2_back"
+
+    val edgeToFront = Map(edge1 -> edge1_front, edge2 -> edge2_front)
+    val edgeToBack = Map(edge1 -> edge1_back, edge2 -> edge2_back)
+
+    val vertices = Set(r1, r2, r3, r4)
+    val edges = Set(edge1, edge2)
+
+    val graph = Graph(vertices, edges, Map(), Set(), Set(), edgeToFront, edgeToBack)
+
+    val REACHABILITY_test = Seq(
+      CreateCprSort,
+      CreateSym(edge1_front, Z3.CprSort),
+      CreateSym(edge1_back, Z3.CprSort),
+      CreateSym(edge2_front, Z3.CprSort),
+      CreateSym(edge2_back, Z3.CprSort)
+    ) ++
+      graph.declaration.toZ3.ss ++
+        graph.CanReachFrom(1)(4).toZ3.ss ++
+      Seq(
+        Z3.Sat,
+        Z3.Model
+      )
+
+    check(REACHABILITY_test, "reachability")
+  }
+
+  test("isolation") {
+    val r1: Vertex = Router(1, Ip(1111), BGP)
+    val r2: Vertex = Router(2, Ip(2222), BGP)
+    val r3: Vertex = Router(3, Ip(3333), BGP)
+    val r4: Vertex = Router(4, Ip(4444), BGP)
+    val edge1 = (1, 2)
+    val edge2 = (2, 3)
+
+    val edge1_front = "edge1_front"
+    val edge1_back = "edge1_back"
+    val edge2_front = "edge2_front"
+    val edge2_back = "edge2_back"
+
+    val edgeToFront = Map(edge1 -> edge1_front, edge2 -> edge2_front)
+    val edgeToBack = Map(edge1 -> edge1_back, edge2 -> edge2_back)
+
+    val vertices = Set(r1, r2, r3, r4)
+    val edges = Set(edge1, edge2)
+
+    val graph = Graph(vertices, edges, Map(), Set(), Set(), edgeToFront, edgeToBack)
+
+    val ISOLATION_test = Seq(
+      CreateCprSort,
+      CreateSym(edge1_front, Z3.CprSort),
+      CreateSym(edge1_back, Z3.CprSort),
+      CreateSym(edge2_front, Z3.CprSort),
+      CreateSym(edge2_back, Z3.CprSort)
+    ) ++
+      graph.declaration.toZ3.ss ++
+      graph.IsolatedFrom(1)(4).toZ3.ss ++
+      Seq(
+        Z3.Sat,
+        Z3.Model
+      )
+
+    check(ISOLATION_test, "isolation")
+  }
+
+  // R1 -rec1-rec2-> R2 -rec3-rec4-> R3
+  test("fault-tolerance") {
+    val R1 = Router(1, Ip(123), BGP)
+    val R2 = Router(2, Ip(456), BGP)
+    val R3 = Router(3, Ip(789), BGP)
+    val e12 = (1, 2)
+    val e23 = (2, 3)
+    val front = Map((e12 -> "rec2"), (e23 -> "rec4"))
+    val back = Map((e12 -> "rec1"), (e23 -> "rec3"))
+
+    val graph = Graph(Set(R1, R2, R3), Set(e12, e23), Map(), Set(), Set(), front, back)
+
+    val code = Seq(
+      CreateCprSort,
+      CreateSym("rec1", Z3.CprSort),
+      CreateSym("rec2", Z3.CprSort),
+      CreateSym("rec3", Z3.CprSort),
+      CreateSym("rec4", Z3.CprSort),
+    ) ++ graph.declaration.toZ3.ss ++
+    Seq(
+      graph.FaultTolerance(2).toZ3,
+      Z3.Sat,
+      Z3.Model
+    )
+    check(code, "fault-tolerance")
+  }
+
   test("graph_test") {
     val r1: Vertex = Router(1, Ip(12345), BGP)
     val r2: Vertex = Router(2, Ip(54321), BGP)
     val edge = (1, 2)
-    val rec1 = "rec1"
-    val rec2 = "rec2"
-    val inFilter = Eq(CprProj(Sym(rec1), Z3.Valid), Bool(true))
-    val exFilter = Eq(CprProj(Sym(rec2), Z3.Valid), Bool(true))
+    val front = "front_rec"
+    val back = "back_rec"
+
+    val acl1 = AccessControlList(Seq())
+    val acl2 = AccessControlList(Seq())
 
     val vertices = Set(r1, r2)
     val edges = Set(edge)
-    val edge2Import = Map((edge -> inFilter))
-    val edge2Export = Map((edge -> exFilter))
-    val edge2Front = Map((edge -> rec1))
-    val edge2Back = Map((edge -> rec2))
+    val edge2Front = Map((edge -> front))
+    val edge2Back = Map((edge -> back))
+    val acl = Map((1 -> acl1), (2 -> acl2))
 
-    val graph = Graph(vertices, edges, edge2Import, edge2Export, edge2Front, edge2Back)
+    val graph = Graph(vertices, edges, acl, Set(), Set(), edge2Front, edge2Back)
 
     val GRAPH_test = Seq(
       CreateCprSort,
-      CreateSym("rec1", Z3.CprSort),
-      CreateSym("rec2", Z3.CprSort)
+      CreateSym(front, Z3.CprSort),
+      CreateSym(back, Z3.CprSort)
     ) ++
       graph.declaration.toZ3.ss ++
       Seq(
@@ -106,12 +208,12 @@ class MinesweepTest extends FunSuite {
     val rec1 = "rec1"
     val rec2 = "rec2"
 
-    val edge2Import = Map()
-    val edge2Export = Map()
+    val edge2Import: Set[Filter] = Set()
+    val edge2Export: Set[Filter] = Set()
     val edge2Front = Map()
     val edge2Back = Map()
 
-    val graph = Graph(vertices, edges, edge2Import, edge2Export, edge2Front, edge2Back)
+    val graph = Graph(vertices.toSet, edges.toSet, Map(), Set(), Set(), Map(), Map())
 
     val GRAPH_test = Seq(
       CreateCprSort,

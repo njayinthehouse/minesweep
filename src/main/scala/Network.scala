@@ -28,12 +28,59 @@ object Network {
     }
   }
 
-  case class CanReach(r1: VertexId) extends ToZ3[Sym] {
+  case class CanReach(r: VertexId) extends ToZ3[Sym] {
     override def toZ3: Sym = this.toString
 
-    override def toString: CprId = s"canReach_$r1"
+    override def toString: CprId = s"canReach_$r"
+  }
+  object CanReach {
+    def declaration(v: VertexId, vs: Set[VertexId], es: Set[(VertexId, VertexId)]): ToZ3[Prog[Decl]] =
+      new ToZ3[Prog[Decl]] {
+        override def toZ3: Prog[Decl] = {
+          var r: Seq[Decl] = vs.toSeq.map(v => CreateSym(CanReach(v).toString, BoolSort))
+          var visited: Set[VertexId] = Set()
 
-    val declaration = ???
+          while (visited != vs) {
+            val u = (vs -- visited).head
+            val (t, visSet) = visit(u, visited)
+            r ++= t
+            visited ++= visSet
+          }
+
+          r
+        }
+
+        def visit(u: VertexId, visited: Set[VertexId]): (Prog[Decl], Set[VertexId]) = {
+          if (u == v)
+            (Seq(Assert(CanReach(u).toZ3 =? Bool(true))), visited + u)
+
+          else {
+            // Find all parents, including visited ones
+            val ps = for {
+              (p, w) <- es
+              if w == u
+            } yield p
+
+            // Assert constraint for current canReach
+            var r: Prog[Decl] = Seq(Assert(CanReach(u).toZ3 =? {
+              if (ps.isEmpty) Bool(false)
+              else Or(ps.toSeq.map(p => DataFwd(p, u).toZ3 && CanReach(p).toZ3))
+            }))
+
+            // Add current canReach to visited set
+            var visitedSet = visited + u
+
+            // Visit every unvisited parent. Update the visited set after every traversal
+            for { p <- ps if !visitedSet.contains(p) } {
+              val (pr, visSet) = visit(p, visitedSet)
+              r ++= pr
+              visitedSet ++= visSet
+            }
+
+            (r, visitedSet)
+          }
+        }
+      }
   }
 
   case class ControlFwd(r1: VertexId, r2: VertexId) extends ToZ3[Sym] {
@@ -42,6 +89,7 @@ object Network {
     override def toString: String = s"controlfwd_${r1}_$r2"
 
     def declaration(cprName: String): ToZ3[Prog[Decl]] = new ToZ3[Prog[Decl]] {
+      // Requires that cprName is created as a symbolic variable
       override def toZ3: Prog[Decl] = Seq(
         CreateSym(ControlFwd.this.toString, BoolSort),
         Assert(ControlFwd.this.toZ3 =? (CprProj(cprName, Valid) && (cprName =? Best(r1, BGP).toZ3)))
@@ -65,14 +113,15 @@ object Network {
     }
   }
 
-  case class DataFwd(r1: VertexId, r2: VertexId, acl: AccessControlList) extends ToZ3[Sym] {
+  case class DataFwd(r1: VertexId, r2: VertexId) extends ToZ3[Sym] {
     //assert(acl.r == r1)
 
     override def toZ3: Sym = this.toString
 
     override def toString: CprId = s"datafwd_${r1}_$r2"
 
-    val declaration: ToZ3[Prog[Decl]] = new ToZ3[Prog[Decl]] {
+    def declaration(acl: AccessControlList): ToZ3[Prog[Decl]] = new ToZ3[Prog[Decl]] {
+      // Requires that ControlFwd(r1, r2) is created
       override def toZ3: Prog[Decl] = Seq(
         CreateSym(DataFwd.this.toString, BoolSort),
         Assert(DataFwd.this.toZ3 =? ControlFwd(r1, r2).toZ3 && acl.toZ3)
@@ -111,7 +160,10 @@ object Network {
     }
 
     // We only check best for BGP
-    val bgpRouters: Set[Vertex] = vs.filter { case Router(_, _, BGP) => true }
+    val bgpRouters: Set[Vertex] = vs.filter {
+      case Router(_, _, BGP) => true
+      case _ => false
+    }
     val bgpRouterNames: Set[String] = bgpRouters.map(_.toString)
     val bests: Set[Best] = bgpRouters.map(r => Best(r.name, BGP))
     val controlFwds: Set[(ControlFwd, CprId)] = for { // TODO: Test controlfwd emission
@@ -123,8 +175,14 @@ object Network {
 
     trait Property
 
-    case class CanReachVertex(v: VertexId) extends Property with ToZ3[Prog[Decl]] {
-      override def toZ3: Prog[Decl] = ???
+    case class CanReachFrom(v: VertexId)(u: VertexId) extends Property with ToZ3[Prog[Decl]] {
+      override def toZ3: Prog[Decl] =
+        CanReach.declaration(v, vs.map(_.name), es).toZ3 :+ Assert(CanReach(u).toZ3)
+    }
+
+    case class IsolatedFrom(v: VertexId)(u: VertexId) extends Property with ToZ3[Prog[Decl]] {
+      override def toZ3: Prog[Decl] =
+        CanReach.declaration(v, vs.map(_.name), es).toZ3 :+ Assert(Not(CanReach(u).toZ3))
     }
   }
 
@@ -178,6 +236,7 @@ object Network {
   case class Router(name: VertexId, ip: Ip, protocol: Protocol) extends Vertex
   case class Neighbor(name: VertexId, ip: Ip) extends Vertex
   case class Subnet(name: VertexId, prefix: IpPrefix) extends Vertex
+  case class Vert(name: VertexId) extends Vertex
 
   abstract class Vertex extends ToZ3[Sym] {
     val name: VertexId
@@ -188,6 +247,7 @@ object Network {
       case Router(_, _, protocol) => s"R${name}_$protocol"
       case _: Neighbor => s"N$name"
       case _: Subnet => s"S$name"
+      case _: Vert => s"V$name"
     }
 
     val declaration: ToZ3[CreateSym] = new ToZ3[CreateSym] {
@@ -198,7 +258,11 @@ object Network {
   type VertexId = Int
 
   // Temporary main for testing.
-  def main(args: Array[String]): Unit = ??? /*{
+  def main(args: Array[String]): Unit = {
+    val graph = Graph(Set(Vert(1), Vert(2), Vert(3), Vert(4)), Set((1, 2), (2, 3)), Map(), Set(), Set(), Map(), Map())
+    for (l <- graph.CanReachFrom(1)(3).toZ3)
+      println(l.toString)
+  } /*{
     def FBM_reflexivity(): Unit = {
       val FBM_test = Seq(
         CreateCprSort,

@@ -1,4 +1,4 @@
-import org.scalatest.FunSuite
+/*import org.scalatest.FunSuite
 
 import java.io._ 
 import Network._
@@ -54,7 +54,7 @@ class MinesweepTest extends FunSuite {
       writeTo(code, name)
     } else if (code != expected) {
       writeTo(code, actualName)
-      assert(condition = false, name)
+      assert(false, name)
     }
   }
 
@@ -100,3 +100,4 @@ class MinesweepTest extends FunSuite {
     check(GRAPH_test, "graph")
   }
 }
+*/

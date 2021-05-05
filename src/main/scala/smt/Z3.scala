@@ -107,8 +107,8 @@ package smt {
         case Num(n) => n.toString
         case Bool(b) => b.toString
         case Hex(s) => s
-        case And(es) => if (es.isEmpty) "true" else s"(and ${es.map(_.toString).foldLeft("")(_ ++ _)})"
-        case Or(es) => if (es.isEmpty) "false" else s"(or ${es.map(_.toString).foldLeft("")(_ ++ _)})"
+        case And(es) => if (es.isEmpty) "true" else s"(and${es.map(_.toString).foldLeft("")((x, y) => s"$x $y")})"
+        case Or(es) => if (es.isEmpty) "false" else s"(or${es.map(_.toString).foldLeft("")((x, y) => s"$x $y")})"
         case Lt(e, u) => s"(< $e $u)"
         case Le(e, u) => s"(<= $e $u)"
         case Eq(e, u) => s"(= $e $u)"
@@ -186,6 +186,12 @@ package smt {
       implicit def of(n: Int): Num = Num(n)
 
       implicit def to(n: Num): Int = n.n
+    }
+
+    object Bool {
+      implicit def of(b: Boolean): Bool = Bool(b)
+
+      implicit def to(b: Bool): Boolean = b.b
     }
   }
 

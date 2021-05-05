@@ -61,6 +61,8 @@ package smt {
 
     case class Hex(s: String) extends Expr
 
+    case class Add(es: Seq[Expr]) extends Expr
+
     case class And(es: Seq[Expr]) extends Expr
 
     case class Or(es: Seq[Expr]) extends Expr
@@ -107,6 +109,7 @@ package smt {
         case Num(n) => n.toString
         case Bool(b) => b.toString
         case Hex(s) => s
+        case Add(es) => s"(+ ${es.map(_.toString).foldLeft("")(_ ++ _)})"
         case And(es) => if (es.isEmpty) "true" else s"(and ${es.map(_.toString).foldLeft("")(_ ++ _)})"
         case Or(es) => if (es.isEmpty) "false" else s"(or ${es.map(_.toString).foldLeft("")(_ ++ _)})"
         case Lt(e, u) => s"(< $e $u)"

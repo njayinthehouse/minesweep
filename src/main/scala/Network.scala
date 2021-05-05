@@ -202,7 +202,7 @@ object Network {
     }
 
     case class FaultTolerance(k: Int) extends Property with ToZ3[Stmt] {
-      override def toZ3: Stmt = Assert(Add(faileds.map(_.toZ3).toSeq) <= Num(k))
+      override def toZ3: Stmt = Assert(Add(faileds.map(x => If(x.toZ3, Num(1), Num(0))).toSeq) <= Num(k))
     }
 
     case class NeighborPreference(v: VertexId, vs: Seq[VertexId]) extends Property with ToZ3[Prog[Stmt]] {

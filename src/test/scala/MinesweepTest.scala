@@ -1,4 +1,4 @@
-/*import org.scalatest.FunSuite
+import org.scalatest.FunSuite
 
 import java.io._ 
 import Network._
@@ -99,5 +99,31 @@ class MinesweepTest extends FunSuite {
       )
     check(GRAPH_test, "graph")
   }
+
+  test("Slicing1") {
+    val vertices = for (i <- 1 to 10000) yield Router(i, Ip(i + 5), BGP)
+    val edges = for (i <- 1 to 10) yield (i, i + 1)
+    val rec1 = "rec1"
+    val rec2 = "rec2"
+
+    val edge2Import = Map()
+    val edge2Export = Map()
+    val edge2Front = Map()
+    val edge2Back = Map()
+
+    val graph = Graph(vertices, edges, edge2Import, edge2Export, edge2Front, edge2Back)
+
+    val GRAPH_test = Seq(
+      CreateCprSort,
+      CreateSym("rec1", Z3.CprSort),
+      CreateSym("rec2", Z3.CprSort)
+    ) ++
+      graph.declaration.toZ3.ss ++
+      Seq(
+        Z3.Sat,
+        Z3.Model
+      )
+
+    check(Prog(GRAPH_test).withDCE, name = "graph_dce")
+  }
 }
-*/

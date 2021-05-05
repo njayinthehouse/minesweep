@@ -8,7 +8,9 @@ object Network {
 
   // The expr is a BitVecSort in Z3
   case class AccessControlList(blacklist: Seq[IpPrefix]) extends ToZ3[Expr] {
-    override def toZ3: Expr = Not(Or(blacklist.map(prefix => FBM(prefix.toZ3, Packet.dstIp.toZ3, prefix.length))))
+    override def toZ3: Expr =
+      if (blacklist.nonEmpty) Not(Or(blacklist.map(prefix => FBM(prefix.toZ3, Packet.dstIp.toZ3, prefix.length))))
+      else Bool(true)
   }
 
   // Best variable
@@ -19,11 +21,13 @@ object Network {
 
     override def toString: String = s"r${routerName}_best_$protocol"
 
-    def declaration(cprNames: Seq[String]): ToZ3[Prog[Decl]] = new ToZ3[Prog[Decl]] {
+    def declaration: ToZ3[Decl] = new ToZ3[Decl] {
+      override def toZ3: Decl = CreateSym(Best.this.toString, CprSort)
+    }
+
+    def assertion(cprNames: Seq[String]): ToZ3[Prog[Decl]] = new ToZ3[Prog[Decl]]{
       override def toZ3: Prog[Decl] =
-        CreateSym(Best.this.toString, CprSort) +:
-          Assert(atLeastOneBest) +:
-          bestIsPreferred.map(Assert(_))
+        Assert(atLeastOneBest) +: bestIsPreferred.map(Assert(_))
 
       val bestIsPreferred: Seq[Or] = cprNames.map(Preferred(Best.this.toString, _))
       val atLeastOneBest: Or = Or(cprNames.map(Best.this.toString =? _))
@@ -90,12 +94,13 @@ object Network {
 
     override def toString: String = s"controlfwd_${r1}_$r2"
 
-    def declaration(cprName: String): ToZ3[Prog[Decl]] = new ToZ3[Prog[Decl]] {
+    def declaration: ToZ3[Decl] = new ToZ3[Decl] {
       // Requires that cprName is created as a symbolic variable
-      override def toZ3: Prog[Decl] = Seq(
-        CreateSym(ControlFwd.this.toString, BoolSort),
-        Assert(ControlFwd.this.toZ3 =? (CprProj(cprName, Valid) && (cprName =? Best(r1, BGP).toZ3)))
-      )
+      override def toZ3: Decl = CreateSym(ControlFwd.this.toString, BoolSort)
+    }
+
+    def assertion(cprName: String): ToZ3[Assert] = new ToZ3[Assert] {
+      override def toZ3: Assert = Assert(ControlFwd.this.toZ3 =? (CprProj(cprName, Valid) && (cprName =? Best(r1, BGP).toZ3)))
     }
   }
 
@@ -134,7 +139,7 @@ object Network {
   case class Failed(r1: VertexId, r2: VertexId) extends ToZ3[Sym] {
     override def toZ3: Sym = this.toString
 
-    override def toString: CprId = super.toString
+    override def toString: CprId = s"failed_${r1}_$r2"
 
     val declaration: ToZ3[CreateSym] = new ToZ3[CreateSym] {
       override def toZ3: CreateSym = CreateSym(Failed.this.toString, BoolSort)
@@ -154,11 +159,14 @@ object Network {
     val declaration: ToZ3[Prog[Decl]] = new ToZ3[Prog[Decl]] {
       def toZ3: Prog[Decl] =
         vs.map(_.declaration.toZ3).toSeq ++ // Vertices
+          faileds.map(_.declaration.toZ3) ++ // Faileds
           importFilters.map(filter => Assert(filter.toZ3)) ++ // Import filters
           exportFilters.map(filter => Assert(filter.toZ3)) ++ // Export filters
-          bests.flatMap(_.declaration(bgpRouterNames.toSeq).toZ3) ++ // Bests
-          controlFwds.flatMap { case (cfwd, cprId) => cfwd.declaration(cprId).toZ3 } ++ // Controlfwds
-          faileds.map(_.declaration.toZ3) // Faileds
+          bests.map(_.declaration.toZ3) ++ // Bests
+          bests.flatMap(x => x.assertion(vertexToOutCprs(x.routerName)).toZ3) ++
+          controlFwds.map(_.declaration.toZ3) ++
+          controlFwdsWithCprId.map { case (cfwd, cprId) => cfwd.assertion(cprId).toZ3 } ++ // Controlfwds
+          es.flatMap { case (v, u) => DataFwd(v, u).declaration(acls.getOrElse(v, AccessControlList(Seq()))).toZ3 }
     }
 
     // We only check best for BGP
@@ -166,12 +174,18 @@ object Network {
       case Router(_, _, BGP) => true
       case _ => false
     }
+
+    def vertexToOutCprs(v: VertexId): Seq[CprId] = for {
+      ((u, _), cprName) <- edge2Back.toSeq
+      if u == v
+    } yield cprName
+
     val bgpRouterNames: Set[String] = bgpRouters.map(_.toString)
     val bests: Set[Best] = bgpRouters.map(r => Best(r.name, BGP))
-    val controlFwds: Set[(ControlFwd, CprId)] = for { // TODO: Test controlfwd emission
+    val controlFwds: Set[ControlFwd] = es.map{ case (r1, r2) => ControlFwd(r1, r2) }
+    val controlFwdsWithCprId: Set[(ControlFwd, CprId)] = for { // TODO: Test controlfwd emission
       (r1, r2) <- es
-      cprId <- edge2Back.get((r1, r2))
-                                                      } yield (ControlFwd(r1, r2), cprId)
+      cprId <- edge2Back.get(r1, r2) } yield (ControlFwd(r1, r2), cprId)
     val faileds: Set[Failed] = es.map { case (r1, r2) => Failed(r1, r2) }
 
 
@@ -186,7 +200,7 @@ object Network {
       override def toZ3: Prog[Decl] =
         CanReach.declaration(v, vs.map(_.name), es).toZ3 :+ Assert(Not(CanReach(u).toZ3))
     }
-    
+
     case class FaultTolerance(k: Int) extends Property with ToZ3[Stmt] {
       override def toZ3: Stmt = Assert(Add(faileds.map(_.toZ3).toSeq) <= Num(k))
     }
@@ -195,18 +209,18 @@ object Network {
       override def toZ3: Prog[Stmt] = {
         vs.foreach { i => assert(es.contains((i, v)), "router v doesn't contain neighbor") }
         val valids = vs.map { i =>
-          val cprId = edge2Front.get((i, v)).get
+          val cprId = edge2Front((i, v))
           CprProj(cprId, Valid)
         }
         val ctrlfwds = vs.map { i => ControlFwd(v, i).toZ3 }
         var constraints = new ListBuffer[Stmt]
-        constraints += Assert(valids(0) ==> ctrlfwds(0))
+        constraints += Assert(valids.head ==> ctrlfwds.head)
         var lhs = new ListBuffer[Expr]
-        var last = valids(0)
+        var last = valids.head
 
-        for (i <- (1 until vs.size)) {
+        for (i <- 1 until vs.size) {
           lhs += Not(last)
-          constraints += Assert(And(lhs.toSeq :+ valids(i)) ==> ctrlfwds(i))
+          constraints += Assert(And(lhs :+ valids(i)) ==> ctrlfwds(i))
           last = valids(i)
         }
         constraints.toSeq
@@ -234,16 +248,16 @@ object Network {
 
   case class Packet(srcIp: Option[Ip], srcPort: Option[Port], dstIp: Option[Ip], dstPort: Option[Port])
     extends ToZ3[Prog[Decl]] {
-      override def toZ3: Prog[Decl] = Seq (
-        CreateSym("srcIp", Z3.BitVecSort(32)),
-        CreateSym("srcPort", Z3.IntSort),
-        CreateSym("dstIp", Z3.BitVecSort(32)),
-        CreateSym("dstPort", Z3.IntSort)
-      ) ++
-        srcIp.map(x => Assert(Z3.Eq(x.toZ3, Z3.Sym("srcIp")))).toSeq ++
-        srcPort.map(x => Assert(Z3.Eq(x.toZ3, Z3.Sym("srcPort")))).toSeq ++
-        dstIp.map(x => Assert(Z3.Eq(x.toZ3, Z3.Sym("dstIp")))).toSeq ++
-        dstPort.map(x => Assert(Z3.Eq(x.toZ3, Z3.Sym("dstPort")))).toSeq
+    override def toZ3: Prog[Decl] = Seq (
+      CreateSym("srcIp", Z3.BitVecSort(32)),
+      CreateSym("srcPort", Z3.IntSort),
+      CreateSym("dstIp", Z3.BitVecSort(32)),
+      CreateSym("dstPort", Z3.IntSort)
+    ) ++
+      srcIp.map(x => Assert(Z3.Eq(x.toZ3, Z3.Sym("srcIp")))).toSeq ++
+      srcPort.map(x => Assert(Z3.Eq(x.toZ3, Z3.Sym("srcPort")))).toSeq ++
+      dstIp.map(x => Assert(Z3.Eq(x.toZ3, Z3.Sym("dstIp")))).toSeq ++
+      dstPort.map(x => Assert(Z3.Eq(x.toZ3, Z3.Sym("dstPort")))).toSeq
   }
   object Packet {
     val srcIp: ToZ3[Sym] = new ToZ3[Sym] { override def toZ3: Sym = "srcIp" }

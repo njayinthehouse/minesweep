@@ -194,7 +194,7 @@ class MinesweepTest extends FunSuite {
       CreateSym("e2", Z3.CprSort),
       CreateSym("e3", Z3.CprSort)
     ) ++
-      graph.declaration.toZ3.ss ++ graph.NeighborPreference(0, Seq(1,2,3)).toZ3.ss
+      graph.declaration.toZ3.ss ++ graph.NeighborPreference(0, Seq(1,2,3)).toZ3.ss ++
       Seq(
         Z3.Sat,
         Z3.Model

@@ -26,3 +26,5 @@
 (assert (=> (valid e1) controlfwd_0_1))
 (assert (=> (and (not (valid e1)) (valid e2)) controlfwd_0_2))
 (assert (=> (and (not (valid e1)) (not (valid e2)) (valid e3)) controlfwd_0_3))
+(check-sat)
+(get-model)

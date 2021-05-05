@@ -2,6 +2,8 @@ import smt.Z3.Sym.of
 import smt.{ToZ3, Z3}
 import smt.Z3._
 
+import scala.collection.mutable.ListBuffer
+
 object Network {
 
   // The expr is a BitVecSort in Z3
@@ -184,6 +186,33 @@ object Network {
       override def toZ3: Prog[Decl] =
         CanReach.declaration(v, vs.map(_.name), es).toZ3 :+ Assert(Not(CanReach(u).toZ3))
     }
+    
+    case class FaultTolerance(k: Int) extends Property with ToZ3[Stmt] {
+      override def toZ3: Stmt = Assert(Add(faileds.map(_.toZ3).toSeq) <= Num(k))
+    }
+
+    case class NeighborPreference(v: VertexId, vs: Seq[VertexId]) extends Property with ToZ3[Prog[Stmt]] {
+      override def toZ3: Prog[Stmt] = {
+        vs.foreach { i => assert(es.contains((i, v)), "router v doesn't contain neighbor") }
+        val valids = vs.map { i =>
+          val cprId = edge2Front.get((i, v)).get
+          CprProj(cprId, Valid)
+        }
+        val ctrlfwds = vs.map { i => ControlFwd(v, i).toZ3 }
+        var constraints = new ListBuffer[Stmt]
+        constraints += Assert(valids(0) ==> ctrlfwds(0))
+        var lhs = new ListBuffer[Expr]
+        var last = valids(0)
+
+        for (i <- (1 until vs.size)) {
+          lhs += Not(last)
+          constraints += Assert(And(lhs.toSeq :+ valids(i)) ==> ctrlfwds(i))
+          last = valids(i)
+        }
+        constraints.toSeq
+      }
+    }
+
   }
 
   case class IpPrefix(prefix: Int, length: Int) extends ToZ3[Hex] {

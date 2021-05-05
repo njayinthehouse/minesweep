@@ -61,6 +61,8 @@ package smt {
 
     case class Hex(s: String) extends Expr
 
+    case class Add(es: Seq[Expr]) extends Expr
+
     case class And(es: Seq[Expr]) extends Expr
 
     case class Or(es: Seq[Expr]) extends Expr

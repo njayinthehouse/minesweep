@@ -13,23 +13,12 @@ This is a work in progress, but our code seems to be much more concise than the 
 
 Note: Our first reimplementation attempt was also dependent on Batfish, but we eventually chose to remove that dependency and implement some basic network components from scratch, since interacting with Java libraries in Scala requires you to wrap the Java code in a straightforward but tedious manner to avoid antipatterns in Scala (for example, nullable references need to be promoted to options). The bulk of the work seemed to be implementing this interface, and that wasn't where we wanted to be spending our time, so we decided to forgo Batfish and define simple network components instead. For now, we have a concrete network interface, but I expect we should be able to abstract these out with traits and provide implementations of these traits using Batfish structures. However, that is beyond the scope of this project.
 
-Immediate attention
--------------------
-1. Fix graph emitter
-
 Questions
 ---------
 Is best constraint correct? Can best be invalid? Then what happens to controlfwd?
 
-TODO
-----
-- High level properties -- create mapping to MS
-- Dead code elimination
-- Hoisting
-
-Bonus
+TODO (Bonus)
 -----
-- ???
 - Best OSPF is just Djikstra
 - Additional optimizations: I'm not confident that we will be able to find any notable new optimizations since the language defined is quite simple.
 - Evaluation testing -- how do we generate network graphs so that we can evaluate our implementation?
